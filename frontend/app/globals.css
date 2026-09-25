@@ -76,7 +76,7 @@
     --chart-4: oklch(0.527 0.154 150.069);
     --chart-5: oklch(0.448 0.119 151.328);
     --radius: 0.625rem;
-    --shell: oklch(0.16 0.005 60);
+    --shell: oklch(0.32 0.06 176);
     --shell-foreground: oklch(0.97 0.003 88);
     --waiting-bg: oklch(0.96 0.03 75);
     --waiting-foreground: oklch(0.45 0.11 55);
@@ -114,7 +114,7 @@
     --chart-3: oklch(0.627 0.194 149.214);
     --chart-4: oklch(0.527 0.154 150.069);
     --chart-5: oklch(0.448 0.119 151.328);
-    --shell: oklch(0.1 0.004 60);
+    --shell: oklch(0.26 0.06 176);
     --shell-foreground: oklch(0.97 0.003 88);
     --waiting-bg: oklch(0.32 0.05 65);
     --waiting-foreground: oklch(0.85 0.07 75);

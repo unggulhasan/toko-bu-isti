@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "px-4 py-3.5 text-[13px] text-shell-foreground/60",
+                  "px-4 py-3.5 text-[15px] text-shell-foreground/60",
                   active && "font-semibold text-shell-foreground shadow-[inset_0_-3px_0_var(--primary)]"
                 )}
               >
