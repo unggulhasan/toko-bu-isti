@@ -35,16 +35,22 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
       setSelectedLineId,
     } = useSalesStore()
     const activeSale = getActiveSale()
-    const justScannedRowRef = useRef<HTMLTableRowElement>(null)
     const qtyInputRefs = useRef(new Map<string, HTMLInputElement>())
+    const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
 
     const lines = activeSale?.lines ?? []
 
     useEffect(() => {
       if (justScannedLineId) {
-        justScannedRowRef.current?.scrollIntoView({ block: "nearest" })
+        rowRefs.current.get(justScannedLineId)?.scrollIntoView({ block: "nearest" })
       }
     }, [justScannedLineId])
+
+    useEffect(() => {
+      if (selectedLineId) {
+        rowRefs.current.get(selectedLineId)?.scrollIntoView({ block: "nearest" })
+      }
+    }, [selectedLineId])
 
     useImperativeHandle(ref, () => ({
       focusQty: (lineId) => {
@@ -86,7 +92,10 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
               return (
                 <TableRow
                   key={line.id}
-                  ref={justScanned ? justScannedRowRef : undefined}
+                  ref={(el) => {
+                    if (el) rowRefs.current.set(line.id, el)
+                    else rowRefs.current.delete(line.id)
+                  }}
                   className={cn(
                     justScanned && "bg-primary/8",
                     isSelected && "bg-muted"
