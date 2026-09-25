@@ -15,35 +15,19 @@ function isTypingTarget(target: EventTarget | null) {
 type HotkeyHandlers = {
   onPay?: () => void
   onNextSale?: () => void
-  onJumpToSale?: (index: number) => void
   disabled?: boolean
 }
 
-export function useHotkeys({
-  onPay,
-  onNextSale,
-  onJumpToSale,
-  disabled,
-}: HotkeyHandlers) {
+export function useHotkeys({ onPay, onNextSale, disabled }: HotkeyHandlers) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (disabled || event.defaultPrevented || event.repeat) return
 
-      const isHotkey =
-        event.key === "F3" ||
-        event.key === "F9" ||
-        (event.ctrlKey && /^[1-9]$/.test(event.key))
+      const isHotkey = event.key === "F3" || event.key === "F9"
 
-      // Function keys and Ctrl+digit are unambiguous shortcuts, so they
-      // should fire even while a text field (e.g. the scan input) is
-      // focused; only plain character keys get swallowed while typing.
+      // Function keys are unambiguous shortcuts, so they should fire even
+      // while a text field (e.g. the scan input) is focused.
       if (!isHotkey && isTypingTarget(event.target)) return
-
-      if (event.ctrlKey && /^[1-9]$/.test(event.key)) {
-        event.preventDefault()
-        onJumpToSale?.(Number(event.key) - 1)
-        return
-      }
 
       if (event.key === "F3") {
         event.preventDefault()
@@ -56,5 +40,5 @@ export function useHotkeys({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onPay, onNextSale, onJumpToSale, disabled])
+  }, [onPay, onNextSale, disabled])
 }

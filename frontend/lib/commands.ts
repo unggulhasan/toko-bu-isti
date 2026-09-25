@@ -1,9 +1,7 @@
 export type CommandName =
   | "pay"
   | "new"
-  | "next"
-  | "void"
-  | "qty"
+  | "deleteSale"
 
 export type CommandDefinition = {
   name: CommandName
@@ -16,9 +14,7 @@ export type CommandDefinition = {
 export const COMMANDS: CommandDefinition[] = [
   { name: "pay", label: "Bayar", aliases: ["bayar"], description: "Buka pembayaran tunai · F9" },
   { name: "new", label: "Transaksi baru", aliases: ["baru"], description: "Mulai transaksi baru" },
-  { name: "next", label: "Transaksi berikutnya", aliases: ["lanjut", "next"], description: "Pindah ke transaksi lain · F3" },
-  { name: "void", label: "Hapus baris", aliases: ["hapus", "void", "remove"], description: "Hapus baris yang dipilih" },
-  { name: "qty", label: "Ubah jumlah", aliases: ["qty", "jumlah"], description: "Ubah jumlah baris yang dipilih", takesArg: true },
+  { name: "deleteSale", label: "Hapus transaksi", aliases: ["hapus"], description: "Hapus transaksi yang aktif" },
 ]
 
 export function matchCommandsByAlias(alias: string): CommandDefinition | undefined {

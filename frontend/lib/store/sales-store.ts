@@ -31,12 +31,12 @@ type SalesActions = {
   setSelectedLineId: (id: string | null) => void
   setActiveSaleId: (id: string) => void
   newSale: () => void
-  cycleActiveSale: () => void
-  jumpToSale: (index: number) => void
+  cycleActiveSale: (direction: 1 | -1) => void
   moveSelection: (direction: 1 | -1) => void
   scanBarcode: (barcode: string, product: Product | undefined) => void
   setLineQty: (lineId: string, qty: number) => void
   removeLine: (lineId: string) => void
+  removeActiveSale: () => void
   clearActiveSaleAfterPayment: () => void
 }
 
@@ -71,25 +71,18 @@ export const useSalesStore = create<SalesState & SalesActions>()(
         })
       },
 
-      cycleActiveSale: () => {
+      cycleActiveSale: (direction) => {
         set((state) => {
           if (state.sales.length === 0) return state
           const currentIndex = state.sales.findIndex(
             (s) => s.id === state.activeSaleId
           )
-          const nextIndex = (currentIndex + 1) % state.sales.length
+          const nextIndex =
+            (currentIndex + direction + state.sales.length) % state.sales.length
           return {
             activeSaleId: state.sales[nextIndex].id,
             selectedLineId: null,
           }
-        })
-      },
-
-      jumpToSale: (index) => {
-        set((state) => {
-          const target = state.sales[index]
-          if (!target) return state
-          return { activeSaleId: target.id, selectedLineId: null }
         })
       },
 
@@ -181,6 +174,20 @@ export const useSalesStore = create<SalesState & SalesActions>()(
           selectedLineId:
             state.selectedLineId === lineId ? null : state.selectedLineId,
         }))
+      },
+
+      removeActiveSale: () => {
+        set((state) => {
+          const remaining = state.sales.filter(
+            (s) => s.id !== state.activeSaleId
+          )
+          const next = remaining[0] ?? makeEmptySale(remaining)
+          return {
+            sales: remaining.length > 0 ? remaining : [next],
+            activeSaleId: next.id,
+            selectedLineId: null,
+          }
+        })
       },
 
       clearActiveSaleAfterPayment: () => {

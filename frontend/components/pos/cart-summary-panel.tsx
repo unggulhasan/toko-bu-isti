@@ -38,7 +38,7 @@ export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
         Bayar · F9
       </Button>
       <div className="mt-3.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
-        F3 transaksi berikutnya · Ctrl+1…9 pindah
+        F3 / . transaksi berikutnya · , transaksi sebelumnya
       </div>
     </div>
   )

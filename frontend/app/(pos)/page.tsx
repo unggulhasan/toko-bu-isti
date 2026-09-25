@@ -17,7 +17,6 @@ export default function CheckoutPage() {
   const cartTableRef = useRef<CartTableHandle>(null)
   const activeSale = useSalesStore((s) => s.activeSale())
   const cycleActiveSale = useSalesStore((s) => s.cycleActiveSale)
-  const jumpToSale = useSalesStore((s) => s.jumpToSale)
   const lines = activeSale?.lines ?? []
 
   function openPayment() {
@@ -27,8 +26,7 @@ export default function CheckoutPage() {
   useHotkeys({
     disabled: paymentOpen,
     onPay: openPayment,
-    onNextSale: cycleActiveSale,
-    onJumpToSale: jumpToSale,
+    onNextSale: () => cycleActiveSale(1),
   })
 
   return (

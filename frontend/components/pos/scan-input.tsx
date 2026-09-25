@@ -3,6 +3,16 @@
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from "react"
 
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { cn } from "@/lib/utils"
 import { useProductsStore } from "@/lib/store/products-store"
 import { useSalesStore } from "@/lib/store/sales-store"
@@ -28,6 +38,7 @@ export const ScanInput = forwardRef<
     const [value, setValue] = useState("")
     const [highlightedIndex, setHighlightedIndex] = useState(0)
     const [commandError, setCommandError] = useState<string | null>(null)
+    const [confirmDeleteSale, setConfirmDeleteSale] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
     useImperativeHandle(ref, () => ({
@@ -39,12 +50,13 @@ export const ScanInput = forwardRef<
       scanBarcode,
       scanError,
       selectedLineId,
-      setLineQty,
-      removeLine,
       newSale,
       cycleActiveSale,
       moveSelection,
+      removeActiveSale,
+      activeSale: getActiveSale,
     } = useSalesStore()
+    const activeSale = getActiveSale()
 
     const isCommandMode = value.startsWith("/")
     const commandText = value.slice(1)
@@ -82,7 +94,7 @@ export const ScanInput = forwardRef<
       inputRef.current?.focus()
     }
 
-    function runCommand(command: CommandDefinition, arg: string) {
+    function runCommand(command: CommandDefinition) {
       setCommandError(null)
       switch (command.name) {
         case "pay":
@@ -91,29 +103,10 @@ export const ScanInput = forwardRef<
         case "new":
           newSale()
           break
-        case "next":
-          cycleActiveSale()
-          break
-        case "void":
-          if (!selectedLineId) {
-            setCommandError("Pilih baris dulu")
-            return
-          }
-          removeLine(selectedLineId)
-          break
-        case "qty": {
-          if (!selectedLineId) {
-            setCommandError("Pilih baris dulu")
-            return
-          }
-          const qty = Number(arg)
-          if (!arg || !Number.isFinite(qty) || qty <= 0) {
-            setCommandError("Jumlah tidak valid")
-            return
-          }
-          setLineQty(selectedLineId, qty)
-          break
-        }
+        case "deleteSale":
+          setValue("")
+          setConfirmDeleteSale(true)
+          return
       }
       resetInput()
     }
@@ -123,7 +116,7 @@ export const ScanInput = forwardRef<
         if (matches.length > 0) {
           const match = matches[Math.min(highlightedIndex, matches.length - 1)]
           if (match.kind === "command") {
-            runCommand(match.command, argText)
+            runCommand(match.command)
           } else {
             scanBarcode(match.product.barcode, match.product)
             resetInput()
@@ -132,7 +125,7 @@ export const ScanInput = forwardRef<
         }
         const directCommand = matchCommandsByAlias(firstWord)
         if (directCommand) {
-          runCommand(directCommand, argText)
+          runCommand(directCommand)
           return
         }
         setCommandError("Tidak ditemukan")
@@ -196,6 +189,16 @@ export const ScanInput = forwardRef<
                   onFocusQty?.(selectedLineId)
                   return
                 }
+                if (e.key === ".") {
+                  e.preventDefault()
+                  cycleActiveSale(1)
+                  return
+                }
+                if (e.key === ",") {
+                  e.preventDefault()
+                  cycleActiveSale(-1)
+                  return
+                }
               }
               if (e.key === "Enter") {
                 e.preventDefault()
@@ -230,7 +233,7 @@ export const ScanInput = forwardRef<
                   onMouseEnter={() => setHighlightedIndex(index)}
                   onClick={() => {
                     if (match.kind === "command") {
-                      runCommand(match.command, argText)
+                      runCommand(match.command)
                     } else {
                       scanBarcode(match.product.barcode, match.product)
                       resetInput()
@@ -259,6 +262,35 @@ export const ScanInput = forwardRef<
             })}
           </div>
         )}
+        <AlertDialog
+          open={confirmDeleteSale}
+          onOpenChange={(open) => {
+            setConfirmDeleteSale(open)
+            if (!open) inputRef.current?.focus()
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus transaksi</AlertDialogTitle>
+              <AlertDialogDescription>
+                Transaksi #{activeSale?.number} akan dihapus beserta semua barisnya. Tindakan ini
+                tidak dapat dibatalkan.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  removeActiveSale()
+                  setConfirmDeleteSale(false)
+                }}
+              >
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     )
   }
