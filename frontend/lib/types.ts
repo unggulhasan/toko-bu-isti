@@ -18,14 +18,13 @@ export type SaleLine = {
 
 export type OpenSale = {
   id: string
-  number: number
   lines: SaleLine[]
   createdAt: string
 }
 
 export type Transaction = {
   id: string
-  saleNumber: number
+  saleNumber: number | null
   lines: SaleLine[]
   total: number
   tendered: number

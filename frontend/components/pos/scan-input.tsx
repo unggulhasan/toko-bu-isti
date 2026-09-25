@@ -47,6 +47,8 @@ export const ScanInput = forwardRef<
 
     const { products, findByBarcode } = useProductsStore()
     const {
+      sales,
+      activeSaleId,
       scanBarcode,
       scanError,
       selectedLineId,
@@ -57,6 +59,7 @@ export const ScanInput = forwardRef<
       activeSale: getActiveSale,
     } = useSalesStore()
     const activeSale = getActiveSale()
+    const activeSaleNumber = sales.findIndex((s) => s.id === activeSaleId) + 1
 
     const isCommandMode = value.startsWith("/")
     const commandText = value.slice(1)
@@ -273,7 +276,7 @@ export const ScanInput = forwardRef<
             <AlertDialogHeader>
               <AlertDialogTitle>Hapus transaksi</AlertDialogTitle>
               <AlertDialogDescription>
-                Transaksi #{activeSale?.number} akan dihapus beserta semua barisnya. Tindakan ini
+                Transaksi #{activeSaleNumber} akan dihapus beserta semua barisnya. Tindakan ini
                 tidak dapat dibatalkan.
               </AlertDialogDescription>
             </AlertDialogHeader>

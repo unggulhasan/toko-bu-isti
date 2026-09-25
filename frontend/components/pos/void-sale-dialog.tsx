@@ -19,7 +19,7 @@ export function VoidSaleDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  saleNumber: number | undefined
+  saleNumber: number | null | undefined
   onConfirm: () => void
 }) {
   return (
@@ -27,7 +27,7 @@ export function VoidSaleDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="font-sans tracking-normal normal-case">
-            Batalkan transaksi #{saleNumber}?
+            Batalkan transaksi #{saleNumber ?? "—"}?
           </AlertDialogTitle>
           <AlertDialogDescription>
             Transaksi ini akan ditandai sebagai dibatalkan dan tidak dihitung

@@ -31,7 +31,7 @@ export function ReceiptPanel({ transaction }: { transaction: Transaction | undef
     <div className="w-80 flex-none rounded-none border border-border bg-card p-5.5">
       <div className="flex items-baseline justify-between">
         <span className="font-mono text-[15px] font-bold text-foreground">
-          Transaksi #{transaction.saleNumber}
+          Transaksi #{transaction.saleNumber ?? "—"}
         </span>
         {isVoided ? (
           <Badge className="bg-muted px-2 py-0.75 text-[11.5px] text-muted-foreground">
@@ -81,7 +81,7 @@ export function ReceiptPanel({ transaction }: { transaction: Transaction | undef
           variant="outline"
           className="flex-1 normal-case"
           onClick={() =>
-            toast.add({ title: "Struk dicetak ulang", description: `Transaksi #${transaction.saleNumber}` })
+            toast.add({ title: "Struk dicetak ulang", description: `Transaksi #${transaction.saleNumber ?? "—"}` })
           }
         >
           Cetak ulang

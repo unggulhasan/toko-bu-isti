@@ -25,6 +25,9 @@ export function CashPaymentDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const activeSale = useSalesStore((s) => s.activeSale())
+  const activeSaleNumber = useSalesStore(
+    (s) => s.sales.findIndex((sale) => sale.id === s.activeSaleId) + 1
+  )
   const clearActiveSaleAfterPayment = useSalesStore(
     (s) => s.clearActiveSaleAfterPayment
   )
@@ -45,7 +48,7 @@ export function CashPaymentDialog({
     clearActiveSaleAfterPayment()
     setTenderedRaw("")
     onOpenChange(false)
-    toast.add({ title: "Struk dicetak", description: `Transaksi #${activeSale.number} selesai.` })
+    toast.add({ title: "Struk dicetak", description: `Transaksi #${activeSaleNumber} selesai.` })
   }
 
   return (
@@ -66,7 +69,7 @@ export function CashPaymentDialog({
               Pembayaran tunai
             </DialogTitle>
             <div className="mt-1 font-mono text-[14px] text-muted-foreground">
-              Transaksi #{activeSale?.number} · {lines.length} baris · {units} unit
+              Transaksi #{activeSaleNumber} · {lines.length} baris · {units} unit
             </div>
           </div>
         </DialogHeader>

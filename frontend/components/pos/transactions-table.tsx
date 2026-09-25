@@ -49,7 +49,7 @@ export function TransactionsTable({
                 )}
               >
                 <TableCell className={cn("font-bold", isVoided && "font-normal line-through")}>
-                  #{t.saleNumber}
+                  #{t.saleNumber ?? "—"}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatClock(new Date(t.createdAt))}

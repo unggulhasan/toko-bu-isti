@@ -2,8 +2,7 @@ import type { OpenSale } from "@/lib/types"
 
 export const SEED_OPEN_SALES: OpenSale[] = [
   {
-    id: "s-1043",
-    number: 1043,
+    id: "s-1",
     createdAt: new Date().toISOString(),
     lines: [
       {
@@ -145,8 +144,7 @@ export const SEED_OPEN_SALES: OpenSale[] = [
     ],
   },
   {
-    id: "s-1044",
-    number: 1044,
+    id: "s-2",
     createdAt: new Date().toISOString(),
     lines: [
       {
@@ -168,8 +166,7 @@ export const SEED_OPEN_SALES: OpenSale[] = [
     ],
   },
   {
-    id: "s-1045",
-    number: 1045,
+    id: "s-3",
     createdAt: new Date().toISOString(),
     lines: [
       {

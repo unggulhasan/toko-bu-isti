@@ -4,15 +4,9 @@ import { persist } from "zustand/middleware"
 import { SEED_OPEN_SALES } from "@/lib/data/seed-sales"
 import type { OpenSale, Product } from "@/lib/types"
 
-function nextSaleNumberFrom(sales: OpenSale[]): number {
-  return Math.max(0, ...sales.map((s) => s.number)) + 1
-}
-
-function makeEmptySale(sales: OpenSale[]): OpenSale {
-  const number = nextSaleNumberFrom(sales)
+function makeEmptySale(): OpenSale {
   return {
-    id: `s-${number}`,
-    number,
+    id: `s-${Date.now()}`,
     createdAt: new Date().toISOString(),
     lines: [],
   }
@@ -62,7 +56,7 @@ export const useSalesStore = create<SalesState & SalesActions>()(
 
       newSale: () => {
         set((state) => {
-          const sale = makeEmptySale(state.sales)
+          const sale = makeEmptySale()
           return {
             sales: [...state.sales, sale],
             activeSaleId: sale.id,
@@ -181,7 +175,7 @@ export const useSalesStore = create<SalesState & SalesActions>()(
           const remaining = state.sales.filter(
             (s) => s.id !== state.activeSaleId
           )
-          const next = remaining[0] ?? makeEmptySale(remaining)
+          const next = remaining[0] ?? makeEmptySale()
           return {
             sales: remaining.length > 0 ? remaining : [next],
             activeSaleId: next.id,
@@ -195,7 +189,7 @@ export const useSalesStore = create<SalesState & SalesActions>()(
           const remaining = state.sales.filter(
             (s) => s.id !== state.activeSaleId
           )
-          const next = remaining[0] ?? makeEmptySale(remaining)
+          const next = remaining[0] ?? makeEmptySale()
           return {
             sales: remaining.length > 0 ? remaining : [next],
             activeSaleId: next.id,

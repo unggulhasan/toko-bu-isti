@@ -17,7 +17,7 @@ export function OpenSalesStrip() {
         Transaksi terbuka · {sales.length}
       </span>
       <div className="flex items-center gap-2">
-        {sales.map((sale) => {
+        {sales.map((sale, index) => {
           const isActive = sale.id === activeSaleId
           return (
             <button
@@ -31,7 +31,7 @@ export function OpenSalesStrip() {
                   : "border-border bg-card text-foreground"
               )}
             >
-              <span className="text-[12.5px] font-bold">#{sale.number}</span>
+              <span className="text-[12.5px] font-bold">#{index + 1}</span>
               <span
                 className={cn(
                   "text-[11px]",

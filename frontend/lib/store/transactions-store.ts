@@ -27,8 +27,8 @@ export const useTransactionsStore = create<
       transactions: SEED_TRANSACTIONS,
       commitSale: (sale, total, tendered, cashierName, registerId) => {
         const transaction: Transaction = {
-          id: `t-${sale.number}-${Date.now()}`,
-          saleNumber: sale.number,
+          id: `t-${sale.id}-${Date.now()}`,
+          saleNumber: null,
           lines: sale.lines,
           total,
           tendered,
