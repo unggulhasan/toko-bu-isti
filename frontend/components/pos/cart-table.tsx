@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { formatRupiah } from "@/lib/format"
+import { formatNumber } from "@/lib/format"
 import { lineAmount } from "@/lib/pos-calculations"
 import { useSalesStore } from "@/lib/store/sales-store"
 
@@ -94,8 +94,8 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
               <TableHead className="sticky top-0 z-10 bg-card text-center">No</TableHead>
               <TableHead className="sticky top-0 z-10 bg-card">Barang</TableHead>
               <TableHead className="sticky top-0 z-10 bg-card text-center">Jml</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card text-right">Harga</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card text-right">Jumlah</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">Harga (Rp)</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">Jumlah (Rp)</TableHead>
               <TableHead className="sticky top-0 z-10 bg-card" />
             </TableRow>
           </TableHeader>
@@ -165,10 +165,10 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                    {formatRupiah(line.price)}
+                    {formatNumber(line.price)}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm font-medium">
-                    {formatRupiah(lineAmount(line))}
+                    {formatNumber(lineAmount(line))}
                   </TableCell>
                   <TableCell className="text-center">
                     <button

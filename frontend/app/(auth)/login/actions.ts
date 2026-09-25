@@ -21,3 +21,9 @@ export async function login(formData: FormData) {
 
   redirect("/")
 }
+
+export async function logout() {
+  const cookieStore = await cookies()
+  cookieStore.delete("pos_session")
+  redirect("/login")
+}
