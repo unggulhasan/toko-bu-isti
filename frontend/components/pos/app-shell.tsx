@@ -17,8 +17,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { cashierName, registerId } = useSessionStore()
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="flex items-center gap-7.5 bg-shell px-6 text-shell-foreground">
+    <div className="flex h-svh flex-col">
+      <header className="flex shrink-0 items-center gap-7.5 bg-shell px-6 text-shell-foreground">
         <div className="flex items-center gap-3 py-3.5">
           <div className="size-5 rounded-sm bg-primary" />
           <span className="text-[13.5px] font-semibold">Toko Northline</span>
@@ -45,7 +45,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span className="text-shell-foreground">{cashierName}</span>
         </div>
       </header>
-      <main className="flex-1 bg-background">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col bg-background">{children}</main>
     </div>
   )
 }

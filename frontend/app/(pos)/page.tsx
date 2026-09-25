@@ -31,12 +31,14 @@ export default function CheckoutPage() {
   })
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <OpenSalesStrip />
-      <div className="flex gap-px bg-border">
-        <div className="flex-1 bg-background px-6 py-5.5">
-          <ScanInput ref={scanInputRef} onPay={openPayment} />
-          <div className="mt-6.5 mb-2.5 flex items-baseline justify-between">
+      <div className="flex min-h-0 flex-1 gap-px bg-border">
+        <div className="flex min-h-0 flex-1 flex-col bg-background px-6 py-5.5">
+          <div className="shrink-0">
+            <ScanInput ref={scanInputRef} onPay={openPayment} />
+          </div>
+          <div className="mt-6.5 mb-2.5 flex shrink-0 items-baseline justify-between">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Transaksi ini
             </span>

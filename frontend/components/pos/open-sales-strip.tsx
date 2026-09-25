@@ -12,7 +12,7 @@ export function OpenSalesStrip() {
   const now = new Date()
 
   return (
-    <div className="flex items-center gap-3.5 border-b border-border bg-muted px-6 py-2.75">
+    <div className="flex shrink-0 items-center gap-3.5 border-b border-border bg-muted px-6 py-2.75">
       <span className="text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase">
         Transaksi terbuka · {sales.length}
       </span>
