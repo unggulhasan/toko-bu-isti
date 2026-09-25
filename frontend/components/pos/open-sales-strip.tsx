@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatRupiah, formatClock, formatDateID } from "@/lib/format"
 import { saleTotal, saleUnits } from "@/lib/pos-calculations"
-import { useSales } from "@/lib/state/sales-provider"
+import { useSalesStore } from "@/lib/store/sales-store"
 
 export function OpenSalesStrip() {
-  const { sales, activeSaleId, setActiveSaleId, newSale } = useSales()
+  const { sales, activeSaleId, setActiveSaleId, newSale } = useSalesStore()
   const now = new Date()
 
   return (

@@ -15,17 +15,18 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatRupiah } from "@/lib/format"
 import { lineAmount } from "@/lib/pos-calculations"
-import { useSales } from "@/lib/state/sales-provider"
+import { useSalesStore } from "@/lib/store/sales-store"
 
 export function CartTable() {
   const {
-    activeSale,
+    activeSale: getActiveSale,
     justScannedLineId,
     setLineQty,
     removeLine,
     selectedLineId,
     setSelectedLineId,
-  } = useSales()
+  } = useSalesStore()
+  const activeSale = getActiveSale()
   const [qtyBuffer, setQtyBuffer] = useState("")
 
   const lines = activeSale?.lines ?? []

@@ -8,12 +8,12 @@ import { Separator } from "@/components/ui/separator"
 import { VoidSaleDialog } from "@/components/pos/void-sale-dialog"
 import { formatDateID, formatClock, formatNumber } from "@/lib/format"
 import { saleUnits } from "@/lib/pos-calculations"
-import { useTransactions } from "@/lib/state/transactions-provider"
+import { useTransactionsStore } from "@/lib/store/transactions-store"
 import { toast } from "@/components/ui/toast"
 import type { Transaction } from "@/lib/types"
 
 export function ReceiptPanel({ transaction }: { transaction: Transaction | undefined }) {
-  const { voidTransaction } = useTransactions()
+  const voidTransaction = useTransactionsStore((s) => s.voidTransaction)
   const [voidOpen, setVoidOpen] = useState(false)
 
   if (!transaction) {

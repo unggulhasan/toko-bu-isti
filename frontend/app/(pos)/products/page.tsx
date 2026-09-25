@@ -13,13 +13,13 @@ import {
 import { ProductSearchBar } from "@/components/pos/product-search-bar"
 import { ProductsTable } from "@/components/pos/products-table"
 import { ProductFormDialog } from "@/components/pos/product-form-dialog"
-import { useProducts } from "@/lib/state/products-provider"
+import { useProductsStore } from "@/lib/store/products-store"
 import type { Product } from "@/lib/types"
 
 const PAGE_SIZE = 8
 
 export default function ProductsPage() {
-  const { products } = useProducts()
+  const products = useProductsStore((s) => s.products)
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)

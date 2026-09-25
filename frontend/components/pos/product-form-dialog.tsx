@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { formatDateID, parseRupiahInput } from "@/lib/format"
-import { useProducts } from "@/lib/state/products-provider"
-import { useSession } from "@/lib/state/session-provider"
+import { useProductsStore } from "@/lib/store/products-store"
+import { useSessionStore } from "@/lib/store/session-store"
 import type { Product } from "@/lib/types"
 
 export function ProductFormDialog({
@@ -27,8 +27,8 @@ export function ProductFormDialog({
   onOpenChange: (open: boolean) => void
   product: Product | null
 }) {
-  const { addProduct, updateProduct, deleteProduct } = useProducts()
-  const { cashierName } = useSession()
+  const { addProduct, updateProduct, deleteProduct } = useProductsStore()
+  const cashierName = useSessionStore((s) => s.cashierName)
   const [barcode, setBarcode] = useState("")
   const [name, setName] = useState("")
   const [priceRaw, setPriceRaw] = useState("")

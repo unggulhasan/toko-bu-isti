@@ -7,12 +7,12 @@ import { TransactionsTable } from "@/components/pos/transactions-table"
 import { ReceiptPanel } from "@/components/pos/receipt-panel"
 import { formatDateID } from "@/lib/format"
 import { saleTotal } from "@/lib/pos-calculations"
-import { useSession } from "@/lib/state/session-provider"
-import { useTransactions } from "@/lib/state/transactions-provider"
+import { useSessionStore } from "@/lib/store/session-store"
+import { useTransactionsStore } from "@/lib/store/transactions-store"
 
 export default function TransactionsPage() {
-  const { transactions } = useTransactions()
-  const { registerId } = useSession()
+  const transactions = useTransactionsStore((s) => s.transactions)
+  const registerId = useSessionStore((s) => s.registerId)
   const [selectedId, setSelectedId] = useState<string | null>(
     transactions[0]?.id ?? null
   )

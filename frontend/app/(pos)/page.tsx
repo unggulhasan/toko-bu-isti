@@ -1,19 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { OpenSalesStrip } from "@/components/pos/open-sales-strip"
-import { ScanInput } from "@/components/pos/scan-input"
+import { ScanInput, type ScanInputHandle } from "@/components/pos/scan-input"
 import { CartTable } from "@/components/pos/cart-table"
 import { CartSummaryPanel } from "@/components/pos/cart-summary-panel"
 import { CashPaymentDialog } from "@/components/pos/cash-payment-dialog"
 import { useHotkeys } from "@/hooks/use-hotkeys"
-import { useSales } from "@/lib/state/sales-provider"
+import { useSalesStore } from "@/lib/store/sales-store"
 import { saleUnits } from "@/lib/pos-calculations"
 
 export default function CheckoutPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
-  const { activeSale, holdActiveSale, cycleActiveSale, jumpToSale } = useSales()
+  const scanInputRef = useRef<ScanInputHandle>(null)
+  const activeSale = useSalesStore((s) => s.activeSale())
+  const holdActiveSale = useSalesStore((s) => s.holdActiveSale)
+  const cycleActiveSale = useSalesStore((s) => s.cycleActiveSale)
+  const jumpToSale = useSalesStore((s) => s.jumpToSale)
   const lines = activeSale?.lines ?? []
 
   function openPayment() {
@@ -33,7 +37,7 @@ export default function CheckoutPage() {
       <OpenSalesStrip />
       <div className="flex gap-px bg-border">
         <div className="flex-1 bg-background px-6 py-5.5">
-          <ScanInput onPay={openPayment} />
+          <ScanInput ref={scanInputRef} onPay={openPayment} />
           <div className="mt-6.5 mb-2.5 flex items-baseline justify-between">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Transaksi ini
@@ -46,7 +50,13 @@ export default function CheckoutPage() {
         </div>
         <CartSummaryPanel onPay={openPayment} />
       </div>
-      <CashPaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
+      <CashPaymentDialog
+        open={paymentOpen}
+        onOpenChange={(open) => {
+          setPaymentOpen(open)
+          if (!open) scanInputRef.current?.focus()
+        }}
+      />
     </div>
   )
 }

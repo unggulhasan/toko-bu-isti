@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { formatRupiah, parseRupiahInput } from "@/lib/format"
 import { saleTotal, saleUnits } from "@/lib/pos-calculations"
-import { useSales } from "@/lib/state/sales-provider"
-import { useTransactions } from "@/lib/state/transactions-provider"
-import { useSession } from "@/lib/state/session-provider"
+import { useSalesStore } from "@/lib/store/sales-store"
+import { useTransactionsStore } from "@/lib/store/transactions-store"
+import { useSessionStore } from "@/lib/store/session-store"
 import { toast } from "@/components/ui/toast"
 
 export function CashPaymentDialog({
@@ -24,9 +24,12 @@ export function CashPaymentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const { activeSale, clearActiveSaleAfterPayment } = useSales()
-  const { commitSale } = useTransactions()
-  const { cashierName, registerId } = useSession()
+  const activeSale = useSalesStore((s) => s.activeSale())
+  const clearActiveSaleAfterPayment = useSalesStore(
+    (s) => s.clearActiveSaleAfterPayment
+  )
+  const commitSale = useTransactionsStore((s) => s.commitSale)
+  const { cashierName, registerId } = useSessionStore()
   const [tenderedRaw, setTenderedRaw] = useState("")
 
   const lines = activeSale?.lines ?? []
@@ -53,7 +56,10 @@ export function CashPaymentDialog({
         if (!next) setTenderedRaw("")
       }}
     >
-      <DialogContent className="max-w-[calc(100%-2rem)] gap-0 p-0 sm:max-w-3xl">
+      <DialogContent
+        finalFocus={false}
+        className="max-w-[calc(100%-2rem)] gap-0 p-0 sm:max-w-3xl"
+      >
         <DialogHeader className="flex-row items-baseline justify-between border-b border-border p-6.5">
           <div>
             <DialogTitle className="font-sans text-[19px] font-semibold tracking-normal normal-case">

@@ -3,10 +3,11 @@
 import { Button } from "@/components/ui/button"
 import { formatRupiah } from "@/lib/format"
 import { saleTotal, saleUnits } from "@/lib/pos-calculations"
-import { useSales } from "@/lib/state/sales-provider"
+import { useSalesStore } from "@/lib/store/sales-store"
 
 export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
-  const { activeSale, holdActiveSale } = useSales()
+  const activeSale = useSalesStore((s) => s.activeSale())
+  const holdActiveSale = useSalesStore((s) => s.holdActiveSale)
   const lines = activeSale?.lines ?? []
   const units = saleUnits(lines)
   const total = saleTotal(lines)

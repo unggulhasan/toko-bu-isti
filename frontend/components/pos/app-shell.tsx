@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { cn } from "@/lib/utils"
-import { useSession } from "@/lib/state/session-provider"
+import { useSessionStore } from "@/lib/store/session-store"
 
 const NAV_ITEMS = [
   { href: "/", label: "Kasir" },
@@ -14,7 +14,7 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { cashierName, registerId } = useSession()
+  const { cashierName, registerId } = useSessionStore()
 
   return (
     <div className="flex min-h-svh flex-col">
