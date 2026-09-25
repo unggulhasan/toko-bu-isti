@@ -16,12 +16,14 @@ export default function CheckoutPage() {
   const { activeSale, holdActiveSale, cycleActiveSale, jumpToSale } = useSales()
   const lines = activeSale?.lines ?? []
 
+  function openPayment() {
+    if (lines.length > 0) setPaymentOpen(true)
+  }
+
   useHotkeys({
     disabled: paymentOpen,
     onHold: holdActiveSale,
-    onPay: () => {
-      if (lines.length > 0) setPaymentOpen(true)
-    },
+    onPay: openPayment,
     onNextSale: cycleActiveSale,
     onJumpToSale: jumpToSale,
   })
@@ -31,7 +33,7 @@ export default function CheckoutPage() {
       <OpenSalesStrip />
       <div className="flex gap-px bg-border">
         <div className="flex-1 bg-background px-6 py-5.5">
-          <ScanInput />
+          <ScanInput onPay={openPayment} />
           <div className="mt-6.5 mb-2.5 flex items-baseline justify-between">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
               Transaksi ini
@@ -42,7 +44,7 @@ export default function CheckoutPage() {
           </div>
           <CartTable />
         </div>
-        <CartSummaryPanel onPay={() => lines.length > 0 && setPaymentOpen(true)} />
+        <CartSummaryPanel onPay={openPayment} />
       </div>
       <CashPaymentDialog open={paymentOpen} onOpenChange={setPaymentOpen} />
     </div>

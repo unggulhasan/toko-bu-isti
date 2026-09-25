@@ -18,8 +18,14 @@ import { lineAmount } from "@/lib/pos-calculations"
 import { useSales } from "@/lib/state/sales-provider"
 
 export function CartTable() {
-  const { activeSale, justScannedLineId, setLineQty, removeLine } = useSales()
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
+  const {
+    activeSale,
+    justScannedLineId,
+    setLineQty,
+    removeLine,
+    selectedLineId,
+    setSelectedLineId,
+  } = useSales()
   const [qtyBuffer, setQtyBuffer] = useState("")
 
   const lines = activeSale?.lines ?? []

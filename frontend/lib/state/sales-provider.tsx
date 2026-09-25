@@ -25,6 +25,8 @@ type SalesContextValue = {
   activeSaleId: string
   justScannedLineId: string | null
   scanError: string | null
+  selectedLineId: string | null
+  setSelectedLineId: (id: string | null) => void
   setActiveSaleId: (id: string) => void
   newSale: () => void
   holdActiveSale: () => void
@@ -59,6 +61,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
     null
   )
   const [scanError, setScanError] = useState<string | null>(null)
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null)
 
   const activeSale = state.sales.find((s) => s.id === state.activeSaleId)
 
@@ -76,6 +79,8 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
       activeSaleId: state.activeSaleId,
       justScannedLineId,
       scanError,
+      selectedLineId,
+      setSelectedLineId,
       setActiveSaleId: (id) => {
         setState((prev) => ({
           ...prev,
@@ -84,6 +89,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             s.id === id ? { ...s, status: "active" } : s
           ),
         }))
+        setSelectedLineId(null)
       },
       newSale: () => {
         const sale = makeEmptySale()
@@ -91,6 +97,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           sales: [...prev.sales, sale],
           activeSaleId: sale.id,
         }))
+        setSelectedLineId(null)
       },
       holdActiveSale: () => {
         setState((prev) => {
@@ -108,6 +115,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             activeSaleId: next?.id ?? prev.activeSaleId,
           }
         })
+        setSelectedLineId(null)
       },
       cycleActiveSale: () => {
         setState((prev) => {
@@ -118,6 +126,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           const nextIndex = (currentIndex + 1) % prev.sales.length
           return { ...prev, activeSaleId: prev.sales[nextIndex].id }
         })
+        setSelectedLineId(null)
       },
       jumpToSale: (index) => {
         setState((prev) => {
@@ -125,6 +134,7 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
           if (!target) return prev
           return { ...prev, activeSaleId: target.id }
         })
+        setSelectedLineId(null)
       },
       scanBarcode: (barcode, product) => {
         if (!product) {
@@ -167,12 +177,14 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
               ? sale.lines.filter((l) => l.id !== lineId)
               : sale.lines.map((l) => (l.id === lineId ? { ...l, qty } : l)),
         }))
+        if (qty <= 0) setSelectedLineId(null)
       },
       removeLine: (lineId) => {
         updateSale(state.activeSaleId, (sale) => ({
           ...sale,
           lines: sale.lines.filter((l) => l.id !== lineId),
         }))
+        setSelectedLineId((prev) => (prev === lineId ? null : prev))
       },
       clearActiveSaleAfterPayment: () => {
         setState((prev) => {
@@ -183,9 +195,10 @@ export function SalesProvider({ children }: { children: React.ReactNode }) {
             activeSaleId: next.id,
           }
         })
+        setSelectedLineId(null)
       },
     }
-  }, [state, activeSale, justScannedLineId, scanError, setState])
+  }, [state, activeSale, justScannedLineId, scanError, selectedLineId, setState])
 
   return <SalesContext.Provider value={value}>{children}</SalesContext.Provider>
 }
