@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 
 import {
@@ -28,8 +28,15 @@ export function CartTable() {
   } = useSalesStore()
   const activeSale = getActiveSale()
   const [qtyBuffer, setQtyBuffer] = useState("")
+  const justScannedRowRef = useRef<HTMLTableRowElement>(null)
 
   const lines = activeSale?.lines ?? []
+
+  useEffect(() => {
+    if (justScannedLineId) {
+      justScannedRowRef.current?.scrollIntoView({ block: "nearest" })
+    }
+  }, [justScannedLineId])
 
   function selectLine(lineId: string) {
     setSelectedLineId(lineId)
@@ -65,6 +72,7 @@ export function CartTable() {
               return (
                 <TableRow
                   key={line.id}
+                  ref={justScanned ? justScannedRowRef : undefined}
                   className={cn(justScanned && "bg-primary/8")}
                   tabIndex={0}
                   onKeyDown={(e) => {
