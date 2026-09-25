@@ -21,8 +21,10 @@ export type ScanInputHandle = {
   focus: () => void
 }
 
-export const ScanInput = forwardRef<ScanInputHandle, { onPay: () => void }>(
-  function ScanInput({ onPay }, ref) {
+export const ScanInput = forwardRef<
+  ScanInputHandle,
+  { onPay: () => void; onFocusQty?: (lineId: string) => void }
+>(function ScanInput({ onPay, onFocusQty }, ref) {
     const [value, setValue] = useState("")
     const [highlightedIndex, setHighlightedIndex] = useState(0)
     const [commandError, setCommandError] = useState<string | null>(null)
@@ -41,6 +43,7 @@ export const ScanInput = forwardRef<ScanInputHandle, { onPay: () => void }>(
       removeLine,
       newSale,
       cycleActiveSale,
+      moveSelection,
     } = useSalesStore()
 
     const isCommandMode = value.startsWith("/")
@@ -174,6 +177,23 @@ export const ScanInput = forwardRef<ScanInputHandle, { onPay: () => void }>(
                 if (e.key === "ArrowUp") {
                   e.preventDefault()
                   setHighlightedIndex((i) => (i - 1 + matches.length) % matches.length)
+                  return
+                }
+              }
+              if (!isCommandMode && !value) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault()
+                  moveSelection(1)
+                  return
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault()
+                  moveSelection(-1)
+                  return
+                }
+                if (e.key === "Enter" && selectedLineId) {
+                  e.preventDefault()
+                  onFocusQty?.(selectedLineId)
                   return
                 }
               }

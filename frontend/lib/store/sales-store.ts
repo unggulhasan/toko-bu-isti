@@ -33,6 +33,7 @@ type SalesActions = {
   newSale: () => void
   cycleActiveSale: () => void
   jumpToSale: (index: number) => void
+  moveSelection: (direction: 1 | -1) => void
   scanBarcode: (barcode: string, product: Product | undefined) => void
   setLineQty: (lineId: string, qty: number) => void
   removeLine: (lineId: string) => void
@@ -89,6 +90,24 @@ export const useSalesStore = create<SalesState & SalesActions>()(
           const target = state.sales[index]
           if (!target) return state
           return { activeSaleId: target.id, selectedLineId: null }
+        })
+      },
+
+      moveSelection: (direction) => {
+        set((state) => {
+          const sale = state.sales.find((s) => s.id === state.activeSaleId)
+          const lines = sale?.lines ?? []
+          if (lines.length === 0) return state
+          const currentIndex = lines.findIndex(
+            (l) => l.id === state.selectedLineId
+          )
+          const nextIndex =
+            currentIndex === -1
+              ? direction === 1
+                ? 0
+                : lines.length - 1
+              : Math.min(lines.length - 1, Math.max(0, currentIndex + direction))
+          return { selectedLineId: lines[nextIndex].id }
         })
       },
 

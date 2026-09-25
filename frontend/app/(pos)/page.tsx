@@ -4,7 +4,7 @@ import { useRef, useState } from "react"
 
 import { OpenSalesStrip } from "@/components/pos/open-sales-strip"
 import { ScanInput, type ScanInputHandle } from "@/components/pos/scan-input"
-import { CartTable } from "@/components/pos/cart-table"
+import { CartTable, type CartTableHandle } from "@/components/pos/cart-table"
 import { CartSummaryPanel } from "@/components/pos/cart-summary-panel"
 import { CashPaymentDialog } from "@/components/pos/cash-payment-dialog"
 import { useHotkeys } from "@/hooks/use-hotkeys"
@@ -14,6 +14,7 @@ import { saleUnits } from "@/lib/pos-calculations"
 export default function CheckoutPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const scanInputRef = useRef<ScanInputHandle>(null)
+  const cartTableRef = useRef<CartTableHandle>(null)
   const activeSale = useSalesStore((s) => s.activeSale())
   const cycleActiveSale = useSalesStore((s) => s.cycleActiveSale)
   const jumpToSale = useSalesStore((s) => s.jumpToSale)
@@ -36,7 +37,11 @@ export default function CheckoutPage() {
       <div className="flex min-h-0 flex-1 gap-px bg-border">
         <div className="flex min-h-0 flex-1 flex-col bg-background px-6 py-5.5">
           <div className="shrink-0">
-            <ScanInput ref={scanInputRef} onPay={openPayment} />
+            <ScanInput
+              ref={scanInputRef}
+              onPay={openPayment}
+              onFocusQty={(lineId) => cartTableRef.current?.focusQty(lineId)}
+            />
           </div>
           <div className="mt-6.5 mb-2.5 flex shrink-0 items-baseline justify-between">
             <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -46,7 +51,10 @@ export default function CheckoutPage() {
               {lines.length} baris · {saleUnits(lines)} unit · ↑↓ pilih baris · ketik untuk ubah jumlah
             </span>
           </div>
-          <CartTable />
+          <CartTable
+            ref={cartTableRef}
+            onQtyEnter={() => scanInputRef.current?.focus()}
+          />
         </div>
         <CartSummaryPanel onPay={openPayment} />
       </div>

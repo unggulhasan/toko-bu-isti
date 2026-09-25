@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
 import { XIcon } from "lucide-react"
 
 import {
@@ -17,41 +17,55 @@ import { formatRupiah } from "@/lib/format"
 import { lineAmount } from "@/lib/pos-calculations"
 import { useSalesStore } from "@/lib/store/sales-store"
 
-export function CartTable() {
-  const {
-    activeSale: getActiveSale,
-    justScannedLineId,
-    setLineQty,
-    removeLine,
-    selectedLineId,
-    setSelectedLineId,
-  } = useSalesStore()
-  const activeSale = getActiveSale()
-  const [qtyBuffer, setQtyBuffer] = useState("")
-  const justScannedRowRef = useRef<HTMLTableRowElement>(null)
+const MIN_QTY = 0
+const MAX_QTY = 1000
 
-  const lines = activeSale?.lines ?? []
+export type CartTableHandle = {
+  focusQty: (lineId: string) => void
+}
 
-  useEffect(() => {
-    if (justScannedLineId) {
-      justScannedRowRef.current?.scrollIntoView({ block: "nearest" })
+export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }>(
+  function CartTable({ onQtyEnter }, ref) {
+    const {
+      activeSale: getActiveSale,
+      justScannedLineId,
+      setLineQty,
+      removeLine,
+      selectedLineId,
+      setSelectedLineId,
+    } = useSalesStore()
+    const activeSale = getActiveSale()
+    const justScannedRowRef = useRef<HTMLTableRowElement>(null)
+    const qtyInputRefs = useRef(new Map<string, HTMLInputElement>())
+
+    const lines = activeSale?.lines ?? []
+
+    useEffect(() => {
+      if (justScannedLineId) {
+        justScannedRowRef.current?.scrollIntoView({ block: "nearest" })
+      }
+    }, [justScannedLineId])
+
+    useImperativeHandle(ref, () => ({
+      focusQty: (lineId) => {
+        const input = qtyInputRefs.current.get(lineId)
+        input?.focus()
+        input?.select()
+      },
+    }))
+
+    function selectLine(lineId: string) {
+      setSelectedLineId(lineId)
     }
-  }, [justScannedLineId])
 
-  function selectLine(lineId: string) {
-    setSelectedLineId(lineId)
-    setQtyBuffer("")
-  }
-
-  function commitQty(lineId: string) {
-    const qty = Number(qtyBuffer)
-    if (qtyBuffer && qty > 0) {
-      setLineQty(lineId, qty)
+    function commitQty(lineId: string, raw: string) {
+      const qty = Number(raw)
+      if (raw !== "" && Number.isFinite(qty)) {
+        setLineQty(lineId, Math.max(MIN_QTY, Math.min(MAX_QTY, qty)))
+      }
     }
-    setQtyBuffer("")
-  }
 
-  return (
+    return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border bg-card">
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Table>
@@ -73,18 +87,10 @@ export function CartTable() {
                 <TableRow
                   key={line.id}
                   ref={justScanned ? justScannedRowRef : undefined}
-                  className={cn(justScanned && "bg-primary/8")}
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (/^[0-9]$/.test(e.key)) {
-                      selectLine(line.id)
-                      setQtyBuffer((prev) => prev + e.key)
-                    } else if (e.key === "Enter") {
-                      commitQty(line.id)
-                    } else if (e.key === "Backspace") {
-                      setQtyBuffer((prev) => prev.slice(0, -1))
-                    }
-                  }}
+                  className={cn(
+                    justScanned && "bg-primary/8",
+                    isSelected && "bg-muted"
+                  )}
                 >
                   <TableCell className="text-center font-mono text-sm text-muted-foreground">
                     {index + 1}
@@ -106,18 +112,30 @@ export function CartTable() {
                   </TableCell>
                   <TableCell>
                     <div className="flex justify-center">
-                      <button
-                        type="button"
-                        onClick={() => selectLine(line.id)}
+                      <input
+                        ref={(el) => {
+                          if (el) qtyInputRefs.current.set(line.id, el)
+                          else qtyInputRefs.current.delete(line.id)
+                        }}
+                        type="number"
+                        min={MIN_QTY}
+                        max={MAX_QTY}
+                        value={line.qty}
+                        onFocus={() => selectLine(line.id)}
+                        onChange={(e) => commitQty(line.id, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault()
+                            onQtyEnter?.()
+                          }
+                        }}
                         className={cn(
-                          "w-13 rounded-none border bg-card py-1.25 text-center font-mono text-sm text-foreground",
+                          "w-13 rounded-none border bg-card py-1.25 text-center font-mono text-sm text-foreground outline-none",
                           isSelected
                             ? "border-primary shadow-[0_0_0_3px_rgba(26,92,84,0.15)]"
                             : "border-border"
                         )}
-                      >
-                        {isSelected && qtyBuffer ? qtyBuffer : line.qty}
-                      </button>
+                      />
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
@@ -143,5 +161,6 @@ export function CartTable() {
         </Table>
       </div>
     </div>
-  )
-}
+    )
+  }
+)
