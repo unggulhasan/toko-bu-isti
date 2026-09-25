@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.open-next/
+.sst/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.pyc
+.env
+.env.local
+.archive
+packages/api/src/ai/output/
+.neon
