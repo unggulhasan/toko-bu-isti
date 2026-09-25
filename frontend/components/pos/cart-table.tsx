@@ -1,6 +1,6 @@
 "use client"
 
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react"
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
 import { XIcon } from "lucide-react"
 
 import {
@@ -37,6 +37,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
     const activeSale = getActiveSale()
     const qtyInputRefs = useRef(new Map<string, HTMLInputElement>())
     const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
+    const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({})
 
     const lines = activeSale?.lines ?? []
 
@@ -64,11 +65,25 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
       setSelectedLineId(lineId)
     }
 
-    function commitQty(lineId: string, raw: string) {
+    function setDraft(lineId: string, raw: string) {
+      setQtyDrafts((prev) => ({ ...prev, [lineId]: raw }))
+    }
+
+    function clearDraft(lineId: string) {
+      setQtyDrafts((prev) => {
+        const { [lineId]: _removed, ...rest } = prev
+        return rest
+      })
+    }
+
+    function commitQty(lineId: string) {
+      const raw = qtyDrafts[lineId]
+      if (raw === undefined) return
       const qty = Number(raw)
       if (raw !== "" && Number.isFinite(qty)) {
         setLineQty(lineId, Math.max(MIN_QTY, Math.min(MAX_QTY, qty)))
       }
+      clearDraft(lineId)
     }
 
     return (
@@ -129,12 +144,14 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                         type="number"
                         min={MIN_QTY}
                         max={MAX_QTY}
-                        value={line.qty}
+                        value={qtyDrafts[line.id] ?? line.qty}
                         onFocus={() => selectLine(line.id)}
-                        onChange={(e) => commitQty(line.id, e.target.value)}
+                        onChange={(e) => setDraft(line.id, e.target.value)}
+                        onBlur={() => commitQty(line.id)}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault()
+                            commitQty(line.id)
                             onQtyEnter?.()
                           }
                         }}
