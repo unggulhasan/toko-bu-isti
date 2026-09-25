@@ -4,7 +4,6 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { XIcon } from "lucide-react"
 
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -88,16 +87,16 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
 
     return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border bg-card">
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <Table>
-          <TableHeader className="sticky top-0 z-10 bg-card">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full caption-bottom text-sm">
+          <TableHeader>
             <TableRow>
-              <TableHead className="text-center">No</TableHead>
-              <TableHead>Barang</TableHead>
-              <TableHead className="text-center">Jml</TableHead>
-              <TableHead className="text-right">Harga</TableHead>
-              <TableHead className="text-right">Jumlah</TableHead>
-              <TableHead />
+              <TableHead className="sticky top-0 z-10 bg-card text-center">No</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card">Barang</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-center">Jml</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">Harga</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">Jumlah</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -112,6 +111,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                     else rowRefs.current.delete(line.id)
                   }}
                   className={cn(
+                    "scroll-mt-12",
                     justScanned && "bg-primary/8",
                     isSelected && "bg-muted"
                   )}
@@ -184,7 +184,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
               )
             })}
           </TableBody>
-        </Table>
+        </table>
       </div>
     </div>
     )

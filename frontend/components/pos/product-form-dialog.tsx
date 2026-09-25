@@ -113,7 +113,7 @@ export function ProductFormDialog({
                 inputMode="numeric"
                 value={priceRaw}
                 onChange={(e) => setPriceRaw(e.target.value.replace(/\D/g, ""))}
-                className="font-mono text-[15px]"
+                className="font-mono text-[15px] md:text-[15px]"
               />
             </InputGroup>
           </div>

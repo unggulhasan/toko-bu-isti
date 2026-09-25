@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
-import { formatRupiah, parseRupiahInput } from "@/lib/format"
+import { formatNumber, formatRupiah, parseRupiahInput } from "@/lib/format"
 import { saleTotal, saleUnits } from "@/lib/pos-calculations"
 import { useSalesStore } from "@/lib/store/sales-store"
 import { useTransactionsStore } from "@/lib/store/transactions-store"
@@ -62,33 +62,33 @@ export function CashPaymentDialog({
       >
         <DialogHeader className="flex-row items-baseline justify-between border-b border-border p-6.5">
           <div>
-            <DialogTitle className="font-sans text-[19px] font-semibold tracking-normal normal-case">
+            <DialogTitle className="font-sans text-2xl font-semibold tracking-normal normal-case">
               Pembayaran tunai
             </DialogTitle>
-            <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">
+            <div className="mt-1 font-mono text-[14px] text-muted-foreground">
               Transaksi #{activeSale?.number} · {lines.length} baris · {units} unit
             </div>
           </div>
         </DialogHeader>
         <div className="flex flex-col gap-px bg-border sm:flex-row">
           <div className="flex-1 bg-card p-6.5">
-            <div className="flex justify-between py-1.5 text-[13.5px] text-muted-foreground">
+            <div className="flex justify-between py-1.5 text-base text-muted-foreground">
               <span>Total bayar</span>
-              <span className="font-mono text-base font-semibold text-foreground">
+              <span className="font-mono text-xl font-semibold text-foreground">
                 {formatRupiah(total)}
               </span>
             </div>
-            <div className="mt-5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            <div className="mt-5 text-sm font-semibold tracking-wide text-muted-foreground uppercase">
               Uang diterima
             </div>
             <InputGroup className="mt-2.5 h-auto border-2 border-primary px-4.5 py-3.5 shadow-[0_0_0_4px_rgba(26,92,84,0.1)]">
               <InputGroupAddon>
-                <span className="font-mono text-2xl text-muted-foreground/60">Rp</span>
+                <span className="font-mono text-3xl text-muted-foreground/60">Rp</span>
               </InputGroupAddon>
               <InputGroupInput
                 autoFocus
                 inputMode="numeric"
-                value={tenderedRaw}
+                value={tendered > 0 ? formatNumber(tendered) : ""}
                 onChange={(e) => setTenderedRaw(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -96,11 +96,11 @@ export function CashPaymentDialog({
                     handleConfirm()
                   }
                 }}
-                className="font-mono text-[30px] font-semibold"
+                className="font-mono text-[38px] font-semibold md:text-[38px]"
                 placeholder="0"
               />
             </InputGroup>
-            <div className="mt-6 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            <div className="mt-6 font-mono text-sm leading-relaxed text-muted-foreground">
               Enter untuk konfirmasi · Esc untuk batal
               <br />
               Laci kas terbuka setelah konfirmasi
@@ -108,14 +108,14 @@ export function CashPaymentDialog({
           </div>
           <div className="flex w-full flex-none flex-col justify-between bg-primary p-6.5 text-primary-foreground sm:w-85">
             <div>
-              <div className="text-[11px] font-semibold tracking-widest text-primary-foreground/65 uppercase">
+              <div className="text-sm font-semibold tracking-widest text-primary-foreground/65 uppercase">
                 Kembalian
               </div>
-              <div className="mt-2.5 font-mono text-[44px] font-bold tracking-tight">
+              <div className="mt-2.5 font-mono text-4xl font-bold tracking-tight whitespace-nowrap">
                 {formatRupiah(Math.max(0, change))}
               </div>
               {tendered > 0 && tendered < total && (
-                <div className="mt-2 text-sm text-primary-foreground/80">
+                <div className="mt-2 text-base text-primary-foreground/80">
                   Kurang {formatRupiah(total - tendered)}
                 </div>
               )}
@@ -124,7 +124,7 @@ export function CashPaymentDialog({
               type="button"
               disabled={!canConfirm}
               onClick={handleConfirm}
-              className="mt-6 h-auto w-full bg-card py-4.5 text-[15.5px] text-primary normal-case hover:bg-card/90"
+              className="mt-6 h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90"
             >
               Konfirmasi &amp; cetak struk
             </Button>

@@ -24,7 +24,7 @@ export function ProductSearchBar({
           placeholder="Cari nama atau barkode"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
-          className="text-[13px]"
+          className="text-[13px] md:text-[13px]"
         />
       </InputGroup>
       <Button type="button" onClick={onNewProduct} className="h-10 normal-case">

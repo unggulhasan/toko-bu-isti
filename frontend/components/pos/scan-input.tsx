@@ -205,7 +205,7 @@ export const ScanInput = forwardRef<
                 resetInput()
               }
             }}
-            className="font-mono text-[19px]"
+            className="font-mono text-[19px] md:text-[19px]"
           />
           <InputGroupAddon align="inline-end">
             <span className="text-xs text-muted-foreground">
@@ -218,7 +218,7 @@ export const ScanInput = forwardRef<
           </InputGroupAddon>
         </InputGroup>
         {isCommandMode && matches.length > 0 && (
-          <div className="absolute top-full right-0 left-0 z-10 mt-1.5 overflow-hidden rounded-none border border-border bg-card shadow-md">
+          <div className="absolute top-full right-0 left-0 z-20 mt-1.5 overflow-hidden rounded-none border border-border bg-card shadow-md">
             {matches.map((match, index) => {
               const isHighlighted = index === highlightedIndex
               const key =
