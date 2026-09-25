@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Read(//private/tmp/**)",
+      "Bash(jobs -l)"
+    ]
+  }
+}

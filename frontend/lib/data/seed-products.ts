@@ -1,0 +1,68 @@
+import type { Product } from "@/lib/types"
+
+export const SEED_PRODUCTS: Product[] = [
+  {
+    id: "p-8041520094",
+    barcode: "8041520094",
+    name: "Mug Keramik Sand",
+    price: 95000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520117",
+    barcode: "8041520117",
+    name: "Serbet Linen",
+    price: 65000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520201",
+    barcode: "8041520201",
+    name: "Lilin Lebah 170 gr",
+    price: 115000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520233",
+    barcode: "8041520233",
+    name: "Wajan Besi Tuang 25 cm",
+    price: 285000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520295",
+    barcode: "8041520295",
+    name: "Sendok Kayu Zaitun",
+    price: 48000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520344",
+    barcode: "8041520344",
+    name: "Mangkuk Stoneware",
+    price: 135000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520390",
+    barcode: "8041520390",
+    name: "Selimut Wol Slate",
+    price: 630000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+  {
+    id: "p-8041520411",
+    barcode: "8041520411",
+    name: "Pembuka Botol Kuningan",
+    price: 75000,
+    updatedAt: "2026-09-12",
+    updatedBy: "D. Lestari",
+  },
+]

@@ -1,0 +1,38 @@
+export type Product = {
+  id: string
+  barcode: string
+  name: string
+  price: number
+  updatedAt: string
+  updatedBy: string
+}
+
+export type SaleLine = {
+  id: string
+  productId: string
+  barcode: string
+  name: string
+  price: number
+  qty: number
+}
+
+export type OpenSale = {
+  id: string
+  number: number
+  lines: SaleLine[]
+  status: "active" | "waiting"
+  createdAt: string
+}
+
+export type Transaction = {
+  id: string
+  saleNumber: number
+  lines: SaleLine[]
+  total: number
+  tendered: number
+  change: number
+  cashierName: string
+  registerId: string
+  createdAt: string
+  status: "completed" | "voided"
+}
