@@ -116,15 +116,15 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                     isSelected && "bg-muted"
                   )}
                 >
-                  <TableCell className="text-center font-mono text-sm text-muted-foreground">
+                  <TableCell className="py-2 text-center font-mono text-base text-muted-foreground">
                     {index + 1}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2">
                     <div className="flex items-center gap-2.25">
-                      <span className="text-[14.5px] font-medium text-foreground">
+                      <span className="text-base font-medium text-foreground">
                         {line.name}
                       </span>
-                      <span className="font-mono text-[11px] text-muted-foreground">
+                      <span className="font-mono text-xs text-muted-foreground">
                         {line.barcode}
                       </span>
                       {justScanned && (
@@ -134,7 +134,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-2">
                     <div className="flex justify-center">
                       <input
                         ref={(el) => {
@@ -156,7 +156,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                           }
                         }}
                         className={cn(
-                          "w-13 rounded-none border bg-card py-1.25 text-center font-mono text-sm text-foreground outline-none",
+                          "w-13 rounded-none border bg-card py-1.25 text-center font-mono text-base text-foreground outline-none",
                           isSelected
                             ? "border-primary shadow-[0_0_0_3px_rgba(26,92,84,0.15)]"
                             : "border-border"
@@ -164,13 +164,13 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                       />
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                  <TableCell className="py-2 text-right font-mono text-base text-muted-foreground">
                     {formatNumber(line.price)}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm font-medium">
+                  <TableCell className="py-2 text-right font-mono text-base font-medium">
                     {formatNumber(lineAmount(line))}
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="py-2 text-center">
                     <button
                       type="button"
                       onClick={() => removeLine(line.id)}
