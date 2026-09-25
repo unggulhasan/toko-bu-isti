@@ -30,7 +30,17 @@ export function useHotkeys({
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (disabled || event.defaultPrevented || event.repeat) return
-      if (isTypingTarget(event.target)) return
+
+      const isHotkey =
+        event.key === "F3" ||
+        event.key === "F7" ||
+        event.key === "F9" ||
+        (event.ctrlKey && /^[1-9]$/.test(event.key))
+
+      // Function keys and Ctrl+digit are unambiguous shortcuts, so they
+      // should fire even while a text field (e.g. the scan input) is
+      // focused; only plain character keys get swallowed while typing.
+      if (!isHotkey && isTypingTarget(event.target)) return
 
       if (event.ctrlKey && /^[1-9]$/.test(event.key)) {
         event.preventDefault()

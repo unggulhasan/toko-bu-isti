@@ -47,7 +47,7 @@ export function ScanInput() {
       />
       <InputGroupAddon align="inline-end">
         <span className="text-xs text-muted-foreground">
-          {scanError ?? "Scan atau ketik barkode · Enter untuk menambah"}
+          {scanError ?? "Scan atau ketik barkode"}
         </span>
       </InputGroupAddon>
     </InputGroup>
