@@ -200,7 +200,7 @@ export const ScanInput = forwardRef<
                 scanError ??
                 (isCommandMode
                   ? "/ untuk perintah · ↑↓ pilih · Enter jalankan"
-                  : "Scan atau ketik barkode · Enter untuk menambah")}
+                  : "Scan atau ketik barkode")}
             </span>
           </InputGroupAddon>
         </InputGroup>
