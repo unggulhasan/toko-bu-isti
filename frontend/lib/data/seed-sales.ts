@@ -4,7 +4,6 @@ export const SEED_OPEN_SALES: OpenSale[] = [
   {
     id: "s-1043",
     number: 1043,
-    status: "active",
     createdAt: new Date().toISOString(),
     lines: [
       {
@@ -68,7 +67,6 @@ export const SEED_OPEN_SALES: OpenSale[] = [
   {
     id: "s-1044",
     number: 1044,
-    status: "waiting",
     createdAt: new Date().toISOString(),
     lines: [
       {
@@ -92,7 +90,6 @@ export const SEED_OPEN_SALES: OpenSale[] = [
   {
     id: "s-1045",
     number: 1045,
-    status: "waiting",
     createdAt: new Date().toISOString(),
     lines: [
       {

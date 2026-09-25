@@ -13,7 +13,6 @@ function makeEmptySale(sales: OpenSale[]): OpenSale {
   return {
     id: `s-${number}`,
     number,
-    status: "active",
     createdAt: new Date().toISOString(),
     lines: [],
   }
@@ -32,7 +31,6 @@ type SalesActions = {
   setSelectedLineId: (id: string | null) => void
   setActiveSaleId: (id: string) => void
   newSale: () => void
-  holdActiveSale: () => void
   cycleActiveSale: () => void
   jumpToSale: (index: number) => void
   scanBarcode: (barcode: string, product: Product | undefined) => void
@@ -45,8 +43,7 @@ export const useSalesStore = create<SalesState & SalesActions>()(
   persist(
     (set, get) => ({
       sales: SEED_OPEN_SALES,
-      activeSaleId:
-        SEED_OPEN_SALES.find((s) => s.status === "active")?.id ?? "",
+      activeSaleId: SEED_OPEN_SALES[0]?.id ?? "",
       justScannedLineId: null,
       scanError: null,
       selectedLineId: null,
@@ -59,13 +56,7 @@ export const useSalesStore = create<SalesState & SalesActions>()(
       setSelectedLineId: (id) => set({ selectedLineId: id }),
 
       setActiveSaleId: (id) => {
-        set((state) => ({
-          activeSaleId: id,
-          sales: state.sales.map((s) =>
-            s.id === id ? { ...s, status: "active" } : s
-          ),
-          selectedLineId: null,
-        }))
+        set({ activeSaleId: id, selectedLineId: null })
       },
 
       newSale: () => {
@@ -74,25 +65,6 @@ export const useSalesStore = create<SalesState & SalesActions>()(
           return {
             sales: [...state.sales, sale],
             activeSaleId: sale.id,
-            selectedLineId: null,
-          }
-        })
-      },
-
-      holdActiveSale: () => {
-        set((state) => {
-          const currentIndex = state.sales.findIndex(
-            (s) => s.id === state.activeSaleId
-          )
-          const held = state.sales.map((s) =>
-            s.id === state.activeSaleId ? { ...s, status: "waiting" as const } : s
-          )
-          const next = held.find(
-            (s, i) => i !== currentIndex && s.status === "waiting"
-          )
-          return {
-            sales: held,
-            activeSaleId: next?.id ?? state.activeSaleId,
             selectedLineId: null,
           }
         })

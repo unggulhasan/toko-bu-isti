@@ -20,7 +20,6 @@ export type OpenSale = {
   id: string
   number: number
   lines: SaleLine[]
-  status: "active" | "waiting"
   createdAt: string
 }
 

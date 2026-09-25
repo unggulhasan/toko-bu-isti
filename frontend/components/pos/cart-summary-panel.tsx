@@ -7,7 +7,6 @@ import { useSalesStore } from "@/lib/store/sales-store"
 
 export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
   const activeSale = useSalesStore((s) => s.activeSale())
-  const holdActiveSale = useSalesStore((s) => s.holdActiveSale)
   const lines = activeSale?.lines ?? []
   const units = saleUnits(lines)
   const total = saleTotal(lines)
@@ -32,22 +31,14 @@ export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
       </div>
       <Button
         type="button"
-        variant="outline"
-        onClick={() => holdActiveSale()}
-        className="mt-auto h-auto py-3 text-[13.5px] font-medium normal-case"
-      >
-        Tahan transaksi · F7
-      </Button>
-      <Button
-        type="button"
         onClick={onPay}
         disabled={lines.length === 0}
-        className="mt-2.5 h-auto py-4.75 text-base normal-case"
+        className="mt-auto h-auto py-4.75 text-base normal-case"
       >
         Bayar · F9
       </Button>
       <div className="mt-3.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
-        F3 transaksi berikutnya · Ctrl+1…9 pindah · F7 tahan transaksi ini
+        F3 transaksi berikutnya · Ctrl+1…9 pindah
       </div>
     </div>
   )

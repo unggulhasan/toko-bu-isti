@@ -15,7 +15,6 @@ export default function CheckoutPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const scanInputRef = useRef<ScanInputHandle>(null)
   const activeSale = useSalesStore((s) => s.activeSale())
-  const holdActiveSale = useSalesStore((s) => s.holdActiveSale)
   const cycleActiveSale = useSalesStore((s) => s.cycleActiveSale)
   const jumpToSale = useSalesStore((s) => s.jumpToSale)
   const lines = activeSale?.lines ?? []
@@ -26,7 +25,6 @@ export default function CheckoutPage() {
 
   useHotkeys({
     disabled: paymentOpen,
-    onHold: holdActiveSale,
     onPay: openPayment,
     onNextSale: cycleActiveSale,
     onJumpToSale: jumpToSale,

@@ -41,7 +41,7 @@ export function OpenSalesStrip() {
                 {saleUnits(sale.lines)} barang
               </span>
               <span className="text-[12px]">{formatRupiah(saleTotal(sale.lines))}</span>
-              {sale.status === "waiting" && (
+              {!isActive && (
                 <Badge className="bg-waiting-bg px-1.5 py-0.5 text-[10.5px] text-waiting-foreground">
                   menunggu
                 </Badge>

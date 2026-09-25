@@ -39,7 +39,6 @@ export const ScanInput = forwardRef<ScanInputHandle, { onPay: () => void }>(
       selectedLineId,
       setLineQty,
       removeLine,
-      holdActiveSale,
       newSale,
       cycleActiveSale,
     } = useSalesStore()
@@ -85,9 +84,6 @@ export const ScanInput = forwardRef<ScanInputHandle, { onPay: () => void }>(
       switch (command.name) {
         case "pay":
           onPay()
-          break
-        case "hold":
-          holdActiveSale()
           break
         case "new":
           newSale()

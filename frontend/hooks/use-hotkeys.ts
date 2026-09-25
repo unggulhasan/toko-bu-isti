@@ -13,7 +13,6 @@ function isTypingTarget(target: EventTarget | null) {
 }
 
 type HotkeyHandlers = {
-  onHold?: () => void
   onPay?: () => void
   onNextSale?: () => void
   onJumpToSale?: (index: number) => void
@@ -21,7 +20,6 @@ type HotkeyHandlers = {
 }
 
 export function useHotkeys({
-  onHold,
   onPay,
   onNextSale,
   onJumpToSale,
@@ -33,7 +31,6 @@ export function useHotkeys({
 
       const isHotkey =
         event.key === "F3" ||
-        event.key === "F7" ||
         event.key === "F9" ||
         (event.ctrlKey && /^[1-9]$/.test(event.key))
 
@@ -51,9 +48,6 @@ export function useHotkeys({
       if (event.key === "F3") {
         event.preventDefault()
         onNextSale?.()
-      } else if (event.key === "F7") {
-        event.preventDefault()
-        onHold?.()
       } else if (event.key === "F9") {
         event.preventDefault()
         onPay?.()
@@ -62,5 +56,5 @@ export function useHotkeys({
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [onHold, onPay, onNextSale, onJumpToSale, disabled])
+  }, [onPay, onNextSale, onJumpToSale, disabled])
 }
