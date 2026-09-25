@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ProductSearchDialog } from "@/components/pos/product-search-dialog"
 import { cn } from "@/lib/utils"
 import { useProductsStore } from "@/lib/store/products-store"
 import { useSalesStore } from "@/lib/store/sales-store"
@@ -21,11 +22,8 @@ import {
   matchCommandsByPrefix,
   type CommandDefinition,
 } from "@/lib/commands"
-import type { Product } from "@/lib/types"
 
-type Match =
-  | { kind: "command"; command: CommandDefinition }
-  | { kind: "product"; product: Product }
+type Match = { kind: "command"; command: CommandDefinition }
 
 export type ScanInputHandle = {
   focus: () => void
@@ -39,13 +37,14 @@ export const ScanInput = forwardRef<
     const [highlightedIndex, setHighlightedIndex] = useState(0)
     const [commandError, setCommandError] = useState<string | null>(null)
     const [confirmDeleteSale, setConfirmDeleteSale] = useState(false)
+    const [productSearchOpen, setProductSearchOpen] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
     useImperativeHandle(ref, () => ({
       focus: () => inputRef.current?.focus(),
     }))
 
-    const { products, findByBarcode } = useProductsStore()
+    const { findByBarcode } = useProductsStore()
     const {
       sales,
       activeSaleId,
@@ -63,32 +62,15 @@ export const ScanInput = forwardRef<
 
     const isCommandMode = value.startsWith("/")
     const commandText = value.slice(1)
-    const [firstWord, ...rest] = commandText.split(" ")
-    const argText = rest.join(" ").trim()
+    const [firstWord] = commandText.split(" ")
 
     const matches = useMemo<Match[]>(() => {
       if (!isCommandMode) return []
-      const commandMatches = matchCommandsByPrefix(firstWord).map<Match>((c) => ({
+      return matchCommandsByPrefix(firstWord).map<Match>((c) => ({
         kind: "command",
         command: c,
       }))
-      // "/cari <text>" or "/find <text>" always search products by name.
-      // Otherwise, only fall back to a product-name search when no action
-      // command's alias prefix-matches what was typed (e.g. "/mangkuk").
-      const isExplicitLookup = firstWord === "cari" || firstWord === "find"
-      const productQuery = isExplicitLookup
-        ? argText
-        : commandMatches.length === 0
-          ? firstWord
-          : ""
-      const productMatches = productQuery
-        ? products
-            .filter((p) => p.name.toLowerCase().includes(productQuery.toLowerCase()))
-            .slice(0, 8)
-            .map<Match>((p) => ({ kind: "product", product: p }))
-        : []
-      return [...commandMatches, ...productMatches]
-    }, [isCommandMode, firstWord, argText, products])
+    }, [isCommandMode, firstWord])
 
     function resetInput() {
       setValue("")
@@ -110,6 +92,10 @@ export const ScanInput = forwardRef<
           setValue("")
           setConfirmDeleteSale(true)
           return
+        case "cari":
+          setValue("")
+          setProductSearchOpen(true)
+          return
       }
       resetInput()
     }
@@ -118,12 +104,7 @@ export const ScanInput = forwardRef<
       if (isCommandMode) {
         if (matches.length > 0) {
           const match = matches[Math.min(highlightedIndex, matches.length - 1)]
-          if (match.kind === "command") {
-            runCommand(match.command)
-          } else {
-            scanBarcode(match.product.barcode, match.product)
-            resetInput()
-          }
+          runCommand(match.command)
           return
         }
         const directCommand = matchCommandsByAlias(firstWord)
@@ -227,39 +208,19 @@ export const ScanInput = forwardRef<
           <div className="absolute top-full right-0 left-0 z-20 mt-1.5 overflow-hidden rounded-none border border-border bg-card shadow-md">
             {matches.map((match, index) => {
               const isHighlighted = index === highlightedIndex
-              const key =
-                match.kind === "command" ? `cmd-${match.command.name}` : `prod-${match.product.id}`
               return (
                 <button
-                  key={key}
+                  key={`cmd-${match.command.name}`}
                   type="button"
                   onMouseEnter={() => setHighlightedIndex(index)}
-                  onClick={() => {
-                    if (match.kind === "command") {
-                      runCommand(match.command)
-                    } else {
-                      scanBarcode(match.product.barcode, match.product)
-                      resetInput()
-                    }
-                  }}
+                  onClick={() => runCommand(match.command)}
                   className={cn(
                     "flex w-full items-center justify-between gap-3 border-b border-border px-4 py-2.5 text-left last:border-b-0",
                     isHighlighted ? "bg-primary/8" : "bg-card"
                   )}
                 >
-                  {match.kind === "command" ? (
-                    <>
-                      <span className="text-[13.5px] text-foreground">/{match.command.aliases[0]}</span>
-                      <span className="text-xs text-muted-foreground">{match.command.description}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-[13.5px] text-foreground">{match.product.name}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {match.product.barcode}
-                      </span>
-                    </>
-                  )}
+                  <span className="text-[13.5px] text-foreground">/{match.command.aliases[0]}</span>
+                  <span className="text-xs text-muted-foreground">{match.command.description}</span>
                 </button>
               )
             })}
@@ -294,6 +255,13 @@ export const ScanInput = forwardRef<
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <ProductSearchDialog
+          open={productSearchOpen}
+          onOpenChange={(open) => {
+            setProductSearchOpen(open)
+            if (!open) inputRef.current?.focus()
+          }}
+        />
       </div>
     )
   }
