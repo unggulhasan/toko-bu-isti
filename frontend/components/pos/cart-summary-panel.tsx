@@ -21,7 +21,7 @@ export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
         <span>Unit</span>
         <span className="font-mono text-foreground">{units}</span>
       </div>
-      <div className="flex items-baseline justify-between pt-4.5 pb-1.5">
+      <div className="flex flex-col pt-4.5 pb-1.5">
         <span className="text-[13px] font-semibold tracking-wide text-muted-foreground uppercase">
           Total bayar
         </span>
@@ -33,7 +33,7 @@ export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
         type="button"
         onClick={onPay}
         disabled={lines.length === 0}
-        className="mt-auto h-auto py-4.75 text-base normal-case"
+        className="mt-auto h-auto py-4.75 text-lg normal-case"
       >
         Bayar · F9
       </Button>

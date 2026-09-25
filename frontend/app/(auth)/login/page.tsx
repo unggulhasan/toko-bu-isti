@@ -33,7 +33,7 @@ export default function LoginPage() {
         <div className="absolute inset-x-0 top-0 flex items-center gap-3 bg-linear-to-b from-shell/55 to-transparent px-7.5 py-6.5">
           <div className="size-5.5 rounded-sm bg-primary" />
           <span className="text-sm font-semibold text-shell-foreground">
-            Toko Northline
+            Toko Bu Isti
           </span>
         </div>
         <div className="absolute right-7.5 bottom-7.5 flex flex-col items-end gap-1.5">
