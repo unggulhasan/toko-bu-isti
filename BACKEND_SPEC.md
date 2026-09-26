@@ -156,17 +156,33 @@ externally maintained `sqlalchemy-firebird` package (2.2.0 at time of writing), 
 SQLAlchemy 2.0+ and Firebird 3.0+ and sits on the modern `firebird-driver` DB-API module.
 
 ```
-firebird+firebird://SYSDBA:masterkey@localhost:3050/C:/data/tokobuisti.fdb
-firebird+firebird://SYSDBA:masterkey@localhost:3050//var/lib/firebird/data/tokobuisti.fdb
+# Windows (production) — drive-letter path
+firebird+firebird://SYSDBA:masterkey@localhost:3050/C:/TokoBuIsti/data/tokobuisti.fdb
+
+# macOS (dev) — note the doubled slash: the path after the host is absolute,
+# so the URL needs // to express a leading /
+firebird+firebird://SYSDBA:masterkey@localhost:3050//Users/unggulhasan/fb/tokobuisti.fdb
 ```
 
-Note the doubled slash in the POSIX form — the path after the host is absolute, so the URL needs
-`//` to express a leading `/`. An alias declared in `databases.conf` is the more maintainable
-option:
+Windows paths use forward slashes in the URL even though the filesystem uses backslashes; a
+literal `\` would need escaping and is a common source of confusion. **Prefer a database alias**
+declared in `databases.conf` — it keeps the URL identical on both platforms, which means one
+connection string in code and the path difference isolated to a config file the deployment
+owns:
+
+```
+# databases.conf, on each machine
+tokobuisti = C:\TokoBuIsti\data\tokobuisti.fdb      # Windows
+tokobuisti = /Users/unggulhasan/fb/tokobuisti.fdb    # macOS
+```
 
 ```
 firebird+firebird://SYSDBA:masterkey@localhost:3050/tokobuisti
 ```
+
+On Windows, `databases.conf` lives in the Firebird install directory (typically
+`C:\Program Files\Firebird\Firebird_5_0\`); on macOS it is at
+`/Library/Frameworks/Firebird.framework/Resources/databases.conf`.
 
 ```python
 # backend/app/database.py
@@ -698,8 +714,10 @@ aligned with how the frontend now works rather than reintroducing a layer the fr
 This is a deliberate fit for a single-terminal POS on a shop LAN, and the spec builds to it.
 Two practical guardrails that cost nothing and are worth having anyway:
 
-- **Bind the API to localhost or the LAN interface**, not `0.0.0.0` on a routable network. This
-  is a deployment flag, not code.
+- **Bind the API to `127.0.0.1`**, not `0.0.0.0`. Production is one Windows machine running
+  both the frontend and the API, so nothing needs to reach it over the network. This is a
+  uvicorn flag (`--host 127.0.0.1`), not code. If a second terminal is ever added, that is the
+  moment to revisit the whole auth model (§6), not just this flag.
 - **Keep the PIN out of URLs.** `POST` with a JSON body, so PINs do not land in access logs or
   browser history. The spec below does this.
 
@@ -1009,7 +1027,8 @@ generator, so route it through a service rather than a bare `INSERT`.
 backend/
   main.py                  # FastAPI app, CORS, router mounting
   app/
-    config.py              # pydantic-settings: DATABASE_URL, CORS origins, bind host
+    config.py              # pydantic-settings: DATABASE_URL, CORS origins, bind host,
+                           #   fb_client_library (Windows override, §4)
     database.py            # engine, sessionmaker, get_db dependency
     models.py              # §2.1
     types.py               # UUIDStr and other Firebird type helpers (§2.2)
@@ -1049,18 +1068,141 @@ dependencies = [
 proxying requests, so `CORSMiddleware` must allow the Next.js origin
 (`http://localhost:3000` in dev). `allow_credentials` is not needed — there are no cookies.
 
-**Client library.** `firebird-driver` binds to the native Firebird client (`fbclient.so` /
-`fbclient.dll`), which is **not** bundled with the wheel. On the dev Mac: `brew install firebird`,
-or point `FIREBIRD_LIBRARY_PATH` at an existing install. On a Linux server, install
-`libfbclient2` (or the Firebird 5 server package) before the app will import. This is the most
-common first-run failure and worth putting in the README.
+**Client library.** `firebird-driver` binds to the native Firebird client library, which is
+**not** bundled with the wheel. It resolves that library differently per platform, so the two
+environments in play here fail in different ways:
+
+| Platform | Role | Resolution | Works out of the box? |
+| --- | --- | --- | --- |
+| Windows | **production** | `find_library("fbclient.dll")` → `ctypes.WinDLL` | Yes, if `fbclient.dll` is on `PATH` |
+| macOS | dev only | `find_library("Firebird")` → `ctypes.CDLL` | **No** — needs the shim below |
+
+Because the two paths are independent, the macOS workaround must never run on Windows. Guard it
+on `sys.platform` exactly as shown.
+
+#### Windows (production)
+
+Install the Firebird 5 **server** (or at minimum the client package) from firebirdsql.org. The
+installer's "Copy client library to `<system>` directory" option puts `fbclient.dll` where
+`find_library` will see it; if you decline that, add the Firebird `bin\` directory to the
+system `PATH` instead.
+
+The one thing to get right: **architecture must match**. A 64-bit Python cannot load a 32-bit
+`fbclient.dll`, and the error (`OSError: [WinError 193] %1 is not a valid Win32 application`)
+does not say so. Install 64-bit Firebird alongside 64-bit Python.
+
+If the DLL is deliberately kept outside `PATH` — a reasonable choice when pinning an exact
+client version next to the app — point the driver at it explicitly rather than mutating `PATH`:
+
+```python
+from firebird.driver import driver_config
+driver_config.fb_client_library.value = r"C:\Program Files\Firebird\Firebird_5_0\fbclient.dll"
+```
+
+That is this driver's supported override (note: it is *not* `FIREBIRD_LIBRARY_PATH`, which the
+driver does not read). Drive it from a setting so dev and production differ only in config:
+
+```python
+# backend/app/config.py
+fb_client_library: str | None = None   # set in the Windows .env; leave unset on macOS
+```
+
+Since production is a single Windows machine, also decide where the `.fdb` file lives and keep
+it off any synced folder (OneDrive, Dropbox). Firebird holds the file open with its own locking;
+a sync client rewriting it underneath is a known way to corrupt a database.
+
+#### macOS (development only)
+
+There is no Homebrew formula — `brew install firebird` fails with "No available formula". Use
+the official `.pkg` from firebirdsql.org, which installs a framework at
+`/Library/Frameworks/Firebird.framework/` (verified against **Firebird 5.0.4** installed this
+way). The driver finds that framework on its own, but **loading it fails out of the box**:
+
+```
+OSError: dlopen(/Library/Frameworks/Firebird.framework/Firebird):
+  Library not loaded: @rpath/lib/libtommath.dylib
+  Reason: no LC_RPATH's found
+```
+
+`libfbclient.dylib` references its sibling libraries through `@rpath` but ships with no
+`LC_RPATH` load command, so the loader cannot resolve them. `libtommath.dylib` is present, in
+the same directory as `libfbclient.dylib` — only the lookup is broken. This is a defect in the
+macOS framework packaging specifically; **Windows is unaffected.**
+
+**The fix**: preload the missing library with `ctypes` before anything imports the driver. Put
+this at the top of `app/database.py`, above the `sqlalchemy` imports:
+
+```python
+# backend/app/database.py
+import ctypes
+import sys
+
+# macOS dev only. The official Firebird.framework ships libfbclient.dylib with no
+# LC_RPATH, so its @rpath/lib/libtommath.dylib reference cannot be resolved.
+# Preloading it into the global namespace satisfies the reference. Must run
+# before the driver is imported. Windows resolves fbclient.dll via PATH and needs
+# none of this — hence the platform guard.
+if sys.platform == "darwin":
+    _FB_LIB = "/Library/Frameworks/Firebird.framework/Versions/A/Resources/lib"
+    ctypes.CDLL(f"{_FB_LIB}/libtommath.dylib", mode=ctypes.RTLD_GLOBAL)
+
+from sqlalchemy import create_engine   # noqa: E402
+```
+
+Verified working: with the preload, `import sqlalchemy_firebird` and
+`create_engine("firebird+firebird://...")` both succeed against SQLAlchemy 2.1.1.
+
+Two alternatives, both rejected after testing:
+
+- `DYLD_LIBRARY_PATH=/Library/Frameworks/Firebird.framework/Versions/A/Resources/lib` also
+  works, but **only when set before the process starts** — assigning it to `os.environ` inside
+  Python is too late, because the dynamic loader reads it at launch. It is also stripped by
+  macOS SIP when passed through some launchers.
+- Patching an `LC_RPATH` into the dylib with `install_name_tool` **does not work**: the binary
+  has no header padding, so the tool refuses with "larger updated load commands do not fit".
+
+#### Keeping the two honest
+
+The failure modes are platform-specific and neither reproduces on the other OS, so the
+Windows path cannot be validated from the dev Mac. Two cheap safeguards:
+
+- Make the connection check a runnable script (`python -m app.healthcheck`) rather than a
+  manual step, so it can be run on the Windows box as the first deployment action.
+- Pin `firebird-driver` and `sqlalchemy-firebird` to exact versions in `pyproject.toml`. A
+  driver upgrade that changes library resolution would surface on the production machine first,
+  which is the worst place to find it.
+
+This is the most common first-run failure on both platforms and belongs in the README.
 
 ## 5. Suggested build order
 
-0. **Stand up Firebird 5 first.** Create the database with `DEFAULT CHARACTER SET UTF8` and page
-   size 8192+, install the client library, and confirm `create_engine(...).connect()` succeeds
-   before writing any models. The dialect/driver/client-library chain is the riskiest setup step
-   in this project and it is much easier to debug in isolation.
+0. **Stand up Firebird 5 first.** Already done on the dev Mac: Firebird 5.0.4 via the official
+   `.pkg`, at `/Library/Frameworks/Firebird.framework/`. What remains is to add the `libtommath`
+   preload shim from §4 (without it the driver will not even import on macOS), create the
+   database with `DEFAULT CHARACTER SET UTF8` and page size 8192+, and confirm
+   `create_engine(...).connect()` succeeds before writing any models. The
+   dialect/driver/client-library chain is the riskiest setup step here and is much easier to
+   debug in isolation.
+
+   `isql` lives at `/Library/Frameworks/Firebird.framework/Resources/bin/isql` on macOS and in
+   the install directory's `bin\` on Windows — not on `PATH` by default on either. Creating the
+   database:
+
+   ```sql
+   CREATE DATABASE 'tokobuisti'
+     USER 'SYSDBA' PASSWORD 'masterkey'
+     PAGE_SIZE 8192
+     DEFAULT CHARACTER SET UTF8;
+   ```
+
+   (Using the `databases.conf` alias from §2.0; substitute a full path if you skip the alias.)
+   `.gitignore` already covers `*.fdb` (commit `079078a`), so the database file will not be
+   committed.
+
+   **Repeat this step on the Windows box before anything else ships there.** Per §4, the
+   Windows client-library path is entirely separate from the macOS one and cannot be validated
+   from the Mac — an architecture mismatch or a missing `fbclient.dll` will not surface until
+   the code runs on that machine.
 1. Config, database, `Base`, `types.py`, Alembic baseline (plus `schema.sql` for generators and
    the `products_bi_bu` trigger).
 2. `Register` + `Cashier`; `POST /api/auth/login`; swap the `CASHIERS` map in
@@ -1075,3 +1217,28 @@ common first-run failure and worth putting in the README.
    checkout service. This closes the `saleNumber: null` gap from §1.4.
 6. Void, summary, reprint.
 7. Port the seed fixtures so dev data matches what the frontend ships with today.
+8. **Windows deployment dry-run.** Install Firebird 5 (64-bit, matching Python), create the
+   database and both generators, run the healthcheck script from §4, then exercise one full
+   checkout end to end. Do this well before the shop needs it — the failure modes here are
+   environmental, not logical, so they do not appear in any test that passes on the Mac.
+
+## 6. Production notes (Windows)
+
+The shop runs one Windows machine serving one register terminal, which keeps deployment simple
+but concentrates the risks:
+
+- **Run the API as a Windows service** (via NSSM or `sc.exe`) rather than a console window, so
+  it survives logout and restarts with the machine. A closed terminal window should not be able
+  to take the till down mid-trade.
+- **Firebird's own service** must start before the API. If the API starts first it will fail its
+  first connection; `pool_pre_ping` (§2.0) recovers once Firebird is up, but set the service
+  dependency so the ordering is not left to chance.
+- **Keep the `.fdb` off OneDrive/Dropbox and off a network share.** Firebird manages its own
+  file locking; a sync client or SMB layer writing underneath it is a documented corruption
+  path.
+- **Back up with `gbak`, not by copying the file.** A file copy of a live database is not
+  consistent. `gbak -b` produces a restorable backup while the database is in use; schedule it
+  nightly to a separate drive.
+- **Sweep interval.** Firebird's MVCC accumulates record versions; the default automatic sweep
+  is usually fine at this transaction volume, but if the database grows oddly, check
+  `gstat -h` for a widening OIT/OAT gap.
