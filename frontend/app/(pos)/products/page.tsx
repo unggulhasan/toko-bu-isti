@@ -111,6 +111,9 @@ export default function ProductsPage() {
           onNewProduct={openNewProduct}
           onNavigate={(delta) => tableRef.current?.moveSelection(delta)}
           onActivate={() => tableRef.current?.activateSelection()}
+          onPageChange={(delta) =>
+            setPage((p) => Math.min(Math.max(p + delta, 0), pageCount - 1))
+          }
         />
       </div>
       <ProductsTable

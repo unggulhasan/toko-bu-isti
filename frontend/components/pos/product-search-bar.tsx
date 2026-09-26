@@ -19,12 +19,14 @@ export function ProductSearchBar({
   onNewProduct,
   onNavigate,
   onActivate,
+  onPageChange,
 }: {
   query: string
   onQueryChange: (value: string) => void
   onNewProduct: () => void
   onNavigate?: (delta: number) => void
   onActivate?: () => void
+  onPageChange?: (delta: number) => void
 }) {
   const [commandError, setCommandError] = useState<string | null>(null)
 
@@ -84,6 +86,12 @@ export function ProductSearchBar({
               } else if (e.key === "Enter") {
                 e.preventDefault()
                 onActivate?.()
+              } else if (e.key === "." && !isCommandMode) {
+                e.preventDefault()
+                onPageChange?.(1)
+              } else if (e.key === "," && !isCommandMode) {
+                e.preventDefault()
+                onPageChange?.(-1)
               }
             }}
             className="text-[19px] md:text-[19px]"
@@ -91,7 +99,9 @@ export function ProductSearchBar({
           <InputGroupAddon align="inline-end">
             <span className="text-xs text-muted-foreground">
               {commandError ??
-                (isCommandMode ? "/baru produk baru · Enter jalankan" : null)}
+                (isCommandMode
+                  ? "/baru produk baru · Enter jalankan"
+                  : "/ untuk perintah · ↑↓ pilih · Enter jalankan · ,. halaman")}
             </span>
           </InputGroupAddon>
         </InputGroup>
