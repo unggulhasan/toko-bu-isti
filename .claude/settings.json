@@ -11,7 +11,8 @@
       "Bash(python3 -)",
       "Bash(grep -c '^```' BACKEND_SPEC.md)",
       "Bash(./fbtest/bin/python -c ' *)",
-      "Bash(git --no-pager diff --stat)"
+      "Bash(git --no-pager diff --stat)",
+      "Bash(uv add *)"
     ]
   }
 }
