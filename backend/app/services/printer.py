@@ -20,10 +20,11 @@ from ..models import Transaction, TransactionStatus
 
 STORE_NAME = "TOKO BU ISTI"
 
-# 80mm paper, Font A (12x24 dots, 1.67mm/char) -- the TM-U220D's roll width.
-# 42 columns is the 58mm-paper figure; using it here is what left the right third
-# of the receipt blank.
-LINE_WIDTH = 48
+# The TM-U220D is a 76/69.5/57.5mm dot-matrix printer, not an 80mm thermal one --
+# there is no 80mm mode. At the shop's 76mm roll, Font A prints 35 columns per
+# Epson's technical reference (DIP switch 2-1 table); the printer's own left/right
+# margins (~6mm each) are fixed in hardware, so no software-side padding is needed.
+LINE_WIDTH = 35
 
 
 class PrinterError(Exception):
