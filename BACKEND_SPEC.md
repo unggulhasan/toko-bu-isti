@@ -383,10 +383,11 @@ class Product(Base, TimestampMixin):
         CheckConstraint("price > 0", name="ck_products_price_positive"),
         # Exact-match scan lookups.
         Index("ix_products_barcode", "barcode"),
-        # Case-insensitive name search. Firebird cannot use a plain index for
-        # CONTAINING, so this is an expression index on UPPER(name) paired with
-        # the query form in §2.2.
-        Index("ix_products_name_upper", func.upper("name")),
+        # Case-insensitive name search — an expression index, emitted by the
+        # dialect as `CREATE INDEX ... COMPUTED BY (upper(name))`. Note the
+        # column object, NOT the string "name": func.upper("name") would index
+        # the literal 'NAME' and silently never match anything.
+        Index("ix_products_name_upper", func.upper(name)),
     )
 
 
@@ -432,6 +433,9 @@ class OpenSaleLine(Base):
         # Rescanning a barcode already in the cart must bump qty, not append a
         # duplicate line (see sales-store.ts scanBarcode).
         UniqueConstraint("sale_id", "barcode", name="uq_osl_sale_barcode"),
+        # qty is always >= 1 here: PATCH .../lines/{id} with qty <= 0 DELETEs the
+        # row rather than storing it (§3.3), so this constraint and that endpoint
+        # agree — the endpoint must delete, not clamp to 0.
         CheckConstraint("qty > 0", name="ck_osl_qty_positive"),
     )
 
@@ -487,6 +491,9 @@ class Transaction(Base):
         # stat strip; every query on it is newest-first.
         Index("ix_txn_created", "created_at"),
         CheckConstraint("tendered >= total", name="ck_txn_tender_covers_total"),
+        # `change` is derived, so pin it to its definition rather than trusting
+        # every future write path to compute it the same way.
+        CheckConstraint("change = tendered - total", name="ck_txn_change_derived"),
     )
 
 
@@ -765,7 +772,11 @@ There is no terminal or register header, because nothing is scoped that way (§1
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/auth/login` | Resolve a PIN to its cashier |
-| `GET` | `/auth/cashiers` | Active cashiers, for seeding/admin — not used by login |
+
+There is deliberately **no `GET /auth/cashiers`**. An earlier draft listed one "for
+seeding/admin", but an unauthenticated endpoint that enumerates cashiers is a list of valid
+logins — and if it ever returned `pin`, the gate would be decorative. Seed cashiers with a
+script against the database, not over HTTP.
 
 There is no `/auth/logout` and no `/auth/session`. Logout is `useSessionStore.logout()` clearing
 `localStorage`; the server holds nothing to revoke. Session state is read from the Zustand store,
@@ -783,7 +794,10 @@ not fetched.
 }
 ```
 
-`401 INVALID_PIN` on an unknown or inactive PIN. The frontend's `login(password)` action keeps
+`401 INVALID_PIN` on an unknown or inactive PIN. Note the consequence of PIN-as-identifier: two
+cashiers can never share a PIN (enforced by `uq_cashiers_pin_live`), and a 4-digit PIN gives
+10,000 combinations — ample for a handful of staff, but the uniqueness constraint, not the
+keyspace, is what will bite when adding the fifth cashier who wants a memorable number. The frontend's `login(password)` action keeps
 its `boolean` return shape — it calls this endpoint, and on `200` sets
 `{ isLoggedIn: true, cashierId, cashierName }` from the response instead of from the local map —
 note `registerId` is gone and `cashierId` replaces it, since `X-Cashier-Id` needs it. Since
@@ -909,9 +923,13 @@ recompute for the summary panel):
 }
 ```
 
-**`GET /open-sales`** returns `{ "items": [...] }` ordered by `position`. If there are no carts,
-the server creates and returns one empty cart — the frontend always assumes at least one
-active sale exists (`removeActiveSale` falls back to `makeEmptySale()`).
+**`GET /open-sales`** returns `{ "items": [...] }` ordered by `position`. It returns an empty
+list when there are no carts — **a `GET` must not create rows.** An earlier draft had it
+auto-create one because the frontend assumes at least one active sale exists
+(`removeActiveSale` falls back to `makeEmptySale()`), but a side-effecting `GET` breaks
+idempotency, is retried freely by browsers and proxies, and would spawn stray carts. The
+frontend instead calls `POST /open-sales` when it receives an empty list — one extra round trip
+on a cold start only.
 
 **`POST /open-sales/{id}/scan`**
 
@@ -928,27 +946,33 @@ active sale exists (`removeActiveSale` falls back to `makeEmptySale()`).
 ```
 
 `scannedLineId` drives `justScannedLineId` (the 1.5s highlight). `404 PRODUCT_NOT_FOUND` for an
-unknown barcode. Server-side this is an upsert honoring the `uq_osl_sale_barcode` merge rule from §2.1 — Firebird 5
-supports `UPDATE OR INSERT` and `MERGE`, either of which does it in one statement against the
-`uq_osl_sale_barcode` key:
+unknown barcode, which is what produces `Barkode "<code>" tidak ditemukan`.
+
+Server-side this is an upsert against the `uq_osl_sale_barcode` key. Use `MERGE`, **not**
+`UPDATE OR INSERT` — the latter overwrites `qty` with the supplied value, whereas the frontend's
+rule is *increment* an existing line:
 
 ```sql
-UPDATE OR INSERT INTO open_sale_lines (id, sale_id, product_id, barcode, name, price, qty, position)
-VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-MATCHING (sale_id, barcode)
-RETURNING id;
+MERGE INTO open_sale_lines t
+USING (SELECT ? AS sale_id, ? AS barcode FROM rdb$database) s
+   ON t.sale_id = s.sale_id AND t.barcode = s.barcode
+WHEN MATCHED THEN UPDATE SET qty = t.qty + 1
+WHEN NOT MATCHED THEN INSERT (id, sale_id, product_id, barcode, name, price, qty, position)
+     VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+RETURNING t.id;
 ```
 
-Note `UPDATE OR INSERT` overwrites `qty` with the supplied value rather than incrementing, so use
-`MERGE ... WHEN MATCHED THEN UPDATE SET qty = qty + 1` for the increment semantics the frontend
-expects.
+**Price is snapshotted at first scan, not at checkout.** If the catalog price changes while a
+cart is parked, the parked line keeps the old price — that is the intent (§2.2), but it means a
+cart parked for days sells at a stale price. Given carts are cleared each shift this is fine;
+worth knowing rather than discovering.
 
 **`PATCH /open-sales/{id}/lines/{lineId}`** — body `{ "qty": 3 }`. `qty <= 0` deletes the line,
 matching `setLineQty`. Returns the updated cart.
 
-**`DELETE /open-sales/{id}`** — `204`. If it was the last cart, the server creates a
-fresh empty one; the response body may carry `{ "replacement": { /* cart */ } }` so the client
-does not need a second round trip.
+**`DELETE /open-sales/{id}`** — `204 No Content`, empty body. (An earlier draft had it return a
+`replacement` cart in the body; `204` forbids a body, and auto-creating a replacement made
+`DELETE` non-idempotent. The frontend creates the next cart explicitly, same as above.)
 
 ### 3.4 Transactions — `/api/transactions`
 
@@ -1002,25 +1026,47 @@ id. Note this is a small change from today's behavior, where every transaction a
 lines attached.
 
 **`GET /transactions/summary`** — accepts the same `from` / `to`. A single aggregate query over
-`ix_txn_created`; `gross` needs a join to `transaction_lines` (or read it from
-`SUM(transactions.total)` for completed rows, which is equal given no discounts exist yet).
-Returns exactly what `TransactionsStatStrip` renders:
+`ix_txn_created`. Returns exactly what `TransactionsStatStrip` renders:
 
 ```jsonc
 {
   "salesCount": 18,       // completed only
-  "gross": 4820000,       // sum of completed line totals
-  "cashInDrawer": 4820000,// sum of completed `total`
+  "gross": 4820000,       // SUM(line_total) over completed transactions
+  "cashInDrawer": 4820000,// SUM(total) over completed transactions
   "voidedCount": 2
 }
 ```
+
+**`gross` and `cashInDrawer` are the same number today**, and the frontend already computes them
+that way — with no discounts, tax or non-cash tender, summing line totals and summing
+`transaction.total` give identical results. Two tiles showing one value is a latent confusion:
+either keep both because a discount feature will split them, or collapse them in the UI. Worth
+deciding rather than shipping two labels for one figure.
+
+Also note `cashInDrawer` is **not** literal drawer contents — it ignores the opening float and
+the change paid out. It is takings, despite the label.
 
 **`POST /transactions/{id}/void`** — sets `status = "voided"`, stamps `voided_at` and
 `voided_by` (from `X-Cashier-Id`). `200` with the updated transaction. `409 ALREADY_VOIDED` on a
 repeat.
 
+Two things the current design leaves open, both worth a decision before the shop relies on it:
+
+- **Void has no time limit and no cash effect.** Any completed transaction can be voided at any
+  time, including one from last week, and the void does not record that money left the drawer.
+  If the cash was already taken, voiding silently makes the day's `cashInDrawer` disagree with
+  the physical count. Common practice is to restrict voids to the current shift and treat
+  anything older as a refund — a separate, positive-money-out record. **The spec implements the
+  simple version** (unrestricted soft-void); if the shop needs the money trail, that is a
+  `refunds` concept, not a wider `status` enum.
+- **Voiding does not restore stock**, because stock is not modeled at all. Consistent today; a
+  blocker the moment inventory is added.
+
 **`POST /transactions/{id}/reprint`** — records the reprint and returns `200`. The frontend
-currently only fires a toast; this gives the action an audit trail. Optional for a first cut.
+currently only fires a toast; this gives the action an audit trail. **Optional — and if you skip
+it, drop the endpoint rather than stubbing it**, since a reprint log with no table behind it is
+worse than none. It needs a `receipt_reprints` table (transaction_id, cashier_id, printed_at)
+that §2.1 does not define; add it with the endpoint or not at all.
 
 ---
 

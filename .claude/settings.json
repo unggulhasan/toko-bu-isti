@@ -9,7 +9,8 @@
       "Bash(npx eslint *)",
       "Bash(npx tsc *)",
       "Bash(python3 -)",
-      "Bash(grep -c '^```' BACKEND_SPEC.md)"
+      "Bash(grep -c '^```' BACKEND_SPEC.md)",
+      "Bash(./fbtest/bin/python -c ' *)"
     ]
   }
 }
