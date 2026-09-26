@@ -59,8 +59,8 @@ def get_printer() -> Escpos:
     raise PrinterError(f"unknown PRINTER_BACKEND: {backend!r}")
 
 
-def _line(printer: Escpos, left: str, right: str) -> None:
-    printer.text(f"{left}{right.rjust(max(1, LINE_WIDTH - len(left)))}\n")
+def _line(printer: Escpos, left: str, right: str, width: int = LINE_WIDTH) -> None:
+    printer.text(f"{left}{right.rjust(max(1, width - len(left)))}\n")
 
 
 def print_receipt(printer: Escpos, txn: Transaction) -> None:
@@ -69,9 +69,10 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
     the same render run again (spec: TransactionLine docstring)."""
 
     try:
-        printer.set(align="center", bold=True, width=2, height=2)
+        # custom_size=True is required or width/height are silently ignored.
+        printer.set(align="center", bold=True, custom_size=True, width=2, height=2)
         printer.text(f"{STORE_NAME}\n")
-        printer.set(align="center", bold=False, width=1, height=1)
+        printer.set(align="center", bold=False, custom_size=True, width=1, height=1)
         if txn.status == TransactionStatus.voided:
             printer.set(align="center", bold=True)
             printer.text("** DIBATALKAN **\n")
@@ -88,7 +89,10 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
             _line(printer, f"  {item.qty} x {item.price:,.0f}".replace(",", "."), f"{item.line_total:,.0f}".replace(",", "."))
 
         printer.text("-" * LINE_WIDTH + "\n")
-        _line(printer, "Total", f"{txn.total:,.0f}".replace(",", "."))
+        printer.set(align="left", bold=True, custom_size=True, width=2, height=2)
+        # Double-width halves how many columns fit per physical line.
+        _line(printer, "Total", f"{txn.total:,.0f}".replace(",", "."), width=LINE_WIDTH // 2)
+        printer.set(align="left", bold=False, custom_size=True, width=1, height=1)
         _line(printer, "Tunai", f"{txn.tendered:,.0f}".replace(",", "."))
         _line(printer, "Kembali", f"{txn.change:,.0f}".replace(",", "."))
         printer.text("\n")
