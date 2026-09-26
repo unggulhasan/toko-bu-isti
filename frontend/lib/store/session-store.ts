@@ -2,15 +2,14 @@ import { useSyncExternalStore } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-const CASHIERS: Record<string, { cashierName: string; registerId: string }> = {
-  "1234": { cashierName: "Kasir 1", registerId: "01" },
-  "7890": { cashierName: "Kasir 2", registerId: "02" },
+const CASHIERS: Record<string, { cashierName: string }> = {
+  "1234": { cashierName: "Kasir 1" },
+  "7890": { cashierName: "Kasir 2" },
 }
 
 type SessionState = {
   isLoggedIn: boolean
   cashierName: string
-  registerId: string
 }
 
 type SessionActions = {
@@ -23,7 +22,6 @@ export const useSessionStore = create<SessionState & SessionActions>()(
     (set) => ({
       isLoggedIn: false,
       cashierName: "",
-      registerId: "",
       login: (password) => {
         const cashier = CASHIERS[password]
         if (!cashier) return false
@@ -31,7 +29,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         return true
       },
       logout: () => {
-        set({ isLoggedIn: false, cashierName: "", registerId: "" })
+        set({ isLoggedIn: false, cashierName: "" })
       },
     }),
     {

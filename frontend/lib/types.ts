@@ -30,7 +30,6 @@ export type Transaction = {
   tendered: number
   change: number
   cashierName: string
-  registerId: string
   createdAt: string
   status: "completed" | "voided"
 }

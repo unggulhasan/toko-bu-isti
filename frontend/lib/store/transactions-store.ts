@@ -13,8 +13,7 @@ type TransactionsActions = {
     sale: OpenSale,
     total: number,
     tendered: number,
-    cashierName: string,
-    registerId: string
+    cashierName: string
   ) => Transaction
   voidTransaction: (id: string) => void
 }
@@ -25,7 +24,7 @@ export const useTransactionsStore = create<
   persist(
     (set) => ({
       transactions: SEED_TRANSACTIONS,
-      commitSale: (sale, total, tendered, cashierName, registerId) => {
+      commitSale: (sale, total, tendered, cashierName) => {
         const transaction: Transaction = {
           id: `t-${sale.id}-${Date.now()}`,
           saleNumber: null,
@@ -34,7 +33,6 @@ export const useTransactionsStore = create<
           tendered,
           change: tendered - total,
           cashierName,
-          registerId,
           createdAt: new Date().toISOString(),
           status: "completed",
         }

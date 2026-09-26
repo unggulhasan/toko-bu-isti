@@ -1,11 +1,13 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { formatDateShortID } from "@/lib/format"
 import { useSessionStore } from "@/lib/store/session-store"
 
 const NAV_ITEMS = [
@@ -17,7 +19,16 @@ const NAV_ITEMS = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { cashierName, registerId, logout } = useSessionStore()
+  const { cashierName, logout } = useSessionStore()
+  // Filled in on the client only: rendering the date during SSR risks serializing
+  // a different day than the browser, and a static value would never roll over.
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const interval = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(interval)
+  }, [])
 
   function handleLogout() {
     logout()
@@ -49,7 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-5.5 font-mono text-[11.5px] text-shell-foreground/60">
-          <span>Register {registerId}</span>
+          <span>{now ? formatDateShortID(now) : null}</span>
           <span className="text-shell-foreground">{cashierName}</span>
           <Button
             type="button"

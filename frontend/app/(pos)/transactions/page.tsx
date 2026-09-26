@@ -7,12 +7,10 @@ import { TransactionsTable } from "@/components/pos/transactions-table"
 import { ReceiptPanel } from "@/components/pos/receipt-panel"
 import { formatDateID } from "@/lib/format"
 import { saleTotal } from "@/lib/pos-calculations"
-import { useSessionStore } from "@/lib/store/session-store"
 import { useTransactionsStore } from "@/lib/store/transactions-store"
 
 export default function TransactionsPage() {
   const transactions = useTransactionsStore((s) => s.transactions)
-  const registerId = useSessionStore((s) => s.registerId)
   const [selectedId, setSelectedId] = useState<string | null>(
     transactions[0]?.id ?? null
   )
@@ -38,7 +36,7 @@ export default function TransactionsPage() {
             Transaksi
           </div>
           <div className="mt-1 text-[12.5px] text-muted-foreground">
-            {formatDateID(new Date())} · register {registerId}
+            {formatDateID(new Date())}
           </div>
         </div>
       </div>

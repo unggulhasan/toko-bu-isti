@@ -11,7 +11,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1042",
     saleNumber: 1042,
     cashierName: "D. Lestari",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(14, 8),
     lines: [
@@ -48,7 +47,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1041",
     saleNumber: 1041,
     cashierName: "D. Lestari",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(13, 52),
     lines: [
@@ -69,7 +67,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1040",
     saleNumber: 1040,
     cashierName: "A. Pratama",
-    registerId: "01",
     status: "voided",
     createdAt: isoAt(13, 30),
     lines: [
@@ -98,7 +95,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1039",
     saleNumber: 1039,
     cashierName: "A. Pratama",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(12, 57),
     lines: [
@@ -135,7 +131,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1038",
     saleNumber: 1038,
     cashierName: "A. Pratama",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(12, 14),
     lines: [
@@ -156,7 +151,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1037",
     saleNumber: 1037,
     cashierName: "D. Lestari",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(11, 46),
     lines: [
@@ -201,7 +195,6 @@ export const SEED_TRANSACTIONS: Transaction[] = [
     id: "t-1036",
     saleNumber: 1036,
     cashierName: "D. Lestari",
-    registerId: "01",
     status: "completed",
     createdAt: isoAt(11, 9),
     lines: [

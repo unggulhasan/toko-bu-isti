@@ -32,7 +32,7 @@ export function CashPaymentDialog({
     (s) => s.clearActiveSaleAfterPayment
   )
   const commitSale = useTransactionsStore((s) => s.commitSale)
-  const { cashierName, registerId } = useSessionStore()
+  const { cashierName } = useSessionStore()
   const [tenderedRaw, setTenderedRaw] = useState("")
 
   const lines = activeSale?.lines ?? []
@@ -44,7 +44,7 @@ export function CashPaymentDialog({
 
   function handleConfirm() {
     if (!canConfirm || !activeSale) return
-    commitSale(activeSale, total, tendered, cashierName, registerId)
+    commitSale(activeSale, total, tendered, cashierName)
     clearActiveSaleAfterPayment()
     setTenderedRaw("")
     onOpenChange(false)

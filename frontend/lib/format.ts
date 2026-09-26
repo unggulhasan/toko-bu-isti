@@ -28,3 +28,12 @@ export function formatDateID(date: Date): string {
     month: "long",
   })
 }
+
+// Short enough for the app-shell header chip, where the long form wraps.
+export function formatDateShortID(date: Date): string {
+  return date.toLocaleDateString("id-ID", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}

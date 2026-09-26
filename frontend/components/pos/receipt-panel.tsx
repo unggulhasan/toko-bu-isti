@@ -44,8 +44,7 @@ export function ReceiptPanel({ transaction }: { transaction: Transaction | undef
         )}
       </div>
       <div className="mt-1.5 font-mono text-[11.5px] text-muted-foreground">
-        {formatDateID(createdAt)} {formatClock(createdAt)} · REG {transaction.registerId} ·{" "}
-        {transaction.cashierName}
+        {formatDateID(createdAt)} {formatClock(createdAt)} · {transaction.cashierName}
       </div>
       <Separator className="my-4" />
       {transaction.lines.map((line) => (
