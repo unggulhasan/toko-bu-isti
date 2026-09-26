@@ -4,15 +4,19 @@ Usage:
     uv run python -m app.seed [--reset]
 
 Keeps dev data matching what the frontend ships with today, minus registerId
-(spec 1.6), so the UI looks the same once it is pointed at the API.
+(spec 1.6), so the UI looks the same once it is pointed at the API. Product data
+is the curated demo fixtures below (referenced by the seeded transactions and
+open carts) plus the shop's real catalog loaded from data/products_niaga.csv.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
 import uuid
 from datetime import datetime, time, timezone
+from pathlib import Path
 
 from sqlalchemy import delete, func, select, text
 
@@ -111,6 +115,17 @@ OPEN_SALES: list[list[tuple[str, int]]] = [
 # generator is entirely independent of the column.
 NEXT_SALE_NUMBER = 1043
 
+# --- Real catalog ---------------------------------------------------------------
+# The shop's actual product catalog, exported from their old point-of-sale system.
+# Loaded from CSV rather than inlined: ~5.5k rows would dwarf the rest of this file.
+CATALOG_CSV_PATH = Path(__file__).parent / "data" / "products_niaga.csv"
+
+
+def _load_catalog_products() -> list[tuple[str, str, int]]:
+    with CATALOG_CSV_PATH.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        return [(row["barcode"], row["name"], int(row["price"])) for row in reader]
+
 
 def _uuid() -> str:
     return str(uuid.uuid4())
@@ -168,8 +183,23 @@ def main() -> int:
         # CHAR(36) CHARACTER SET OCTETS, so a 13-char id would be space-padded to 36
         # and every later equality comparison would hinge on trailing-space
         # semantics. The frontend declares `id: string` and never parses it.
+        #
+        # PRODUCTS (curated demo fixtures, referenced by TRANSACTIONS/OPEN_SALES
+        # above) is combined with the real catalog loaded from CSV. The two are
+        # disjoint today; this guard catches it if that ever stops being true.
+        catalog_products = _load_catalog_products()
+        all_products = PRODUCTS + catalog_products
+        seen_barcodes: dict[str, str] = {}
+        for barcode, name, _price in all_products:
+            if barcode in seen_barcodes:
+                raise SystemExit(
+                    f"seed bug: barcode {barcode!r} used by both "
+                    f"{seen_barcodes[barcode]!r} and {name!r}"
+                )
+            seen_barcodes[barcode] = name
+
         by_barcode: dict[str, Product] = {}
-        for barcode, name, price in PRODUCTS:
+        for barcode, name, price in all_products:
             product = Product(
                 id=_uuid(),
                 barcode=barcode,
@@ -256,7 +286,8 @@ def main() -> int:
     with engine.connect() as conn:
         current = conn.execute(text("SELECT gen_id(gen_sale_number, 0) FROM rdb$database")).scalar()
     print(
-        f"Seeded {len(CASHIERS)} cashiers, {len(PRODUCTS)} products, "
+        f"Seeded {len(CASHIERS)} cashiers, {len(all_products)} products "
+        f"({len(PRODUCTS)} curated + {len(catalog_products)} from catalog), "
         f"{len(TRANSACTIONS)} transactions, {len(OPEN_SALES)} open carts.\n"
         f"gen_sale_number at {current} -- next sale is {current + 1}."
     )
