@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   Dialog,
@@ -17,7 +17,8 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group"
-import { formatDateID, parseRupiahInput } from "@/lib/format"
+import { toast } from "@/components/ui/toast"
+import { formatDateID, formatNumber, parseRupiahInput } from "@/lib/format"
 import { ApiError } from "@/lib/api/client"
 import {
   useCreateProduct,
@@ -42,6 +43,9 @@ export function ProductFormDialog({
   const [name, setName] = useState("")
   const [priceRaw, setPriceRaw] = useState("")
   const [barcodeError, setBarcodeError] = useState<string | null>(null)
+  const barcodeRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const priceRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -49,6 +53,10 @@ export function ProductFormDialog({
       setName(product?.name ?? "")
       setPriceRaw(product ? String(product.price) : "")
       setBarcodeError(null)
+      // Deferred a frame so focus wins over the dialog's own open-focus.
+      requestAnimationFrame(() => {
+        ;(product ? nameRef : barcodeRef).current?.focus()
+      })
     }
   }, [open, product])
 
@@ -73,6 +81,10 @@ export function ProductFormDialog({
         })
       }
       onOpenChange(false)
+      toast.add({
+        title: "Produk disimpan",
+        description: name.trim(),
+      })
     } catch (err) {
       // BARCODE_TAKEN's message is already Indonesian ("Barkode ... sudah
       // dipakai produk lain") -- render it next to the field it's about,
@@ -83,6 +95,12 @@ export function ProductFormDialog({
           : "Tidak dapat menghubungi server kasir."
       )
     }
+  }
+
+  function focusNext(e: React.KeyboardEvent, next: HTMLInputElement | null) {
+    if (e.key !== "Enter") return
+    e.preventDefault()
+    next?.focus()
   }
 
   async function handleDelete() {
@@ -114,11 +132,15 @@ export function ProductFormDialog({
             </Label>
             <Input
               id="barcode"
+              ref={barcodeRef}
               value={barcode}
               onChange={(e) => {
                 setBarcode(e.target.value)
                 setBarcodeError(null)
               }}
+              onKeyDown={(e) => focusNext(e, nameRef.current)}
+              readOnly={isEditing}
+              disabled={isEditing}
               className="border-b-2 font-mono text-[15px]"
               placeholder="Pindai atau ketik barkode"
             />
@@ -132,8 +154,10 @@ export function ProductFormDialog({
             </Label>
             <Input
               id="name"
+              ref={nameRef}
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => focusNext(e, priceRef.current)}
               className="text-[15px] normal-case"
             />
           </div>
@@ -149,15 +173,24 @@ export function ProductFormDialog({
               </InputGroupAddon>
               <InputGroupInput
                 id="price"
+                ref={priceRef}
                 inputMode="numeric"
-                value={priceRaw}
-                onChange={(e) => setPriceRaw(e.target.value.replace(/\D/g, ""))}
+                value={priceRaw ? formatNumber(Number(priceRaw)) : ""}
+                onChange={(e) =>
+                  setPriceRaw(e.target.value.replace(/\D/g, ""))
+                }
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return
+                  e.preventDefault()
+                  handleSave()
+                }}
                 className="font-mono text-[15px] md:text-[15px]"
               />
             </InputGroup>
           </div>
           <div className="col-span-2 font-mono text-[11px] text-muted-foreground">
-            Tab antar kolom · Enter untuk simpan · Esc untuk batal
+            Tab/Enter ke kolom berikutnya · Enter di Harga untuk simpan · Esc
+            untuk batal
           </div>
         </div>
         <DialogFooter className="flex-row items-center justify-between border-t border-border bg-muted p-4.5 sm:justify-between">

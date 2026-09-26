@@ -37,6 +37,18 @@ export function ProductSearchDialog({
   const scan = useScan()
 
   useEffect(() => {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      setSearchTerm("")
+      return
+    }
+    const timeout = setTimeout(() => {
+      setSearchTerm(trimmed)
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [query])
+
+  useEffect(() => {
     setHighlightedIndex(0)
   }, [searchTerm])
 
@@ -84,10 +96,8 @@ export function ProductSearchDialog({
               }
               if (e.key === "Enter") {
                 e.preventDefault()
-                if (results.length > 0 && searchTerm.trim() === query.trim()) {
+                if (results.length > 0) {
                   addProduct(highlightedIndex)
-                } else {
-                  setSearchTerm(query)
                 }
               }
             }}
@@ -97,7 +107,7 @@ export function ProductSearchDialog({
             <span className="text-sm text-muted-foreground">
               {searchTerm.trim()
                 ? "↑↓ pilih · Enter tambah"
-                : "Enter untuk cari"}
+                : "Ketik min. 2 huruf"}
             </span>
           </InputGroupAddon>
         </InputGroup>

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import {
   Pagination,
   PaginationContent,
+  PaginationEllipsis,
   PaginationItem,
   PaginationLink,
   PaginationNext,
@@ -20,6 +21,39 @@ const PAGE_SIZE = 8
 // The search bar is a controlled input rendering on every keystroke; the
 // debounce lives here so typing doesn't refetch on each character.
 const DEBOUNCE_MS = 250
+
+// Builds a windowed page list (first, last, current +/- 1 neighbor) with
+// `null` standing in for an ellipsis, so the pager doesn't overflow when
+// there are many pages.
+function getPaginationRange(page: number, pageCount: number): (number | null)[] {
+  const siblingCount = 1
+  const totalVisible = siblingCount * 2 + 5
+
+  if (pageCount <= totalVisible) {
+    return Array.from({ length: pageCount }, (_, i) => i)
+  }
+
+  const leftIndex = Math.max(page - siblingCount, 1)
+  const rightIndex = Math.min(page + siblingCount, pageCount - 2)
+
+  const range: (number | null)[] = [0]
+
+  range.push(leftIndex > 1 ? null : 1)
+  for (let i = leftIndex; i <= rightIndex; i++) {
+    if (i > 0 && i < pageCount - 1) range.push(i)
+  }
+  range.push(rightIndex < pageCount - 2 ? null : pageCount - 2)
+
+  range.push(pageCount - 1)
+
+  return Array.from(new Set(range.filter((v) => v === null || (v >= 0 && v < pageCount)))).reduce<
+    (number | null)[]
+  >((acc, v) => {
+    if (v === null && acc[acc.length - 1] === null) return acc
+    acc.push(v)
+    return acc
+  }, [])
+}
 
 export default function ProductsPage() {
   const [query, setQuery] = useState("")
@@ -94,19 +128,25 @@ export default function ProductsPage() {
                 aria-disabled={page === 0}
               />
             </PaginationItem>
-            {Array.from({ length: pageCount }, (_, i) => (
-              <PaginationItem key={i}>
-                <PaginationLink
-                  isActive={i === page}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setPage(i)
-                  }}
-                >
-                  {i + 1}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
+            {getPaginationRange(page, pageCount).map((i, idx) =>
+              i === null ? (
+                <PaginationItem key={`ellipsis-${idx}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              ) : (
+                <PaginationItem key={i}>
+                  <PaginationLink
+                    isActive={i === page}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setPage(i)
+                    }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            )}
             <PaginationItem>
               <PaginationNext
                 text=""
