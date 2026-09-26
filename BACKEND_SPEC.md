@@ -24,7 +24,7 @@ Three screens behind a password gate:
 
 | Route | Screen | Purpose |
 | --- | --- | --- |
-| `/login` | Login | Single shared cashier password, sets an `httpOnly` `pos_session` cookie |
+| `/login` | Login | 4-digit PIN entry; the PIN identifies the cashier and their register |
 | `/` | Kasir (checkout) | Scan items into a cart, park multiple carts, take cash payment |
 | `/products` | Produk | CRUD product catalog, search by name/barcode, paginated 8/page |
 | `/transactions` | Transaksi | Day's transaction list, receipt detail, void, reprint, stat strip |
@@ -72,10 +72,31 @@ transactions cannot be voided again (the button is disabled client-side; enforce
 server-side pagination these can no longer be derived from the loaded page, so they need a
 dedicated summary endpoint.
 
-**Session.** `cashierName` ("ShitaMira") and `registerId` ("01") are hardcoded in
-`session-store.ts` and stamped onto every transaction. The mock password is `kasir123`,
-hardcoded in a server action. The backend should own both: a real cashier record and a real
-register, so `cashierName` on a receipt reflects who was actually signed in.
+**Session.** As of commit `8f02c7d` the frontend does its own auth, entirely client-side. A
+4-digit PIN entered through an `InputOTP` is looked up in a hardcoded map in
+`session-store.ts`:
+
+```ts
+const CASHIERS: Record<string, { cashierName: string; registerId: string }> = {
+  "1234": { cashierName: "Kasir 1", registerId: "01" },
+  "7890": { cashierName: "Kasir 2", registerId: "02" },
+}
+```
+
+The PIN is a **cashier identifier, not just a gate** — it selects both who is signed in and
+which register they are on. `useSessionStore` persists `{ isLoggedIn, cashierName, registerId }`
+to `localStorage` under `pos:session`; `app/(pos)/layout.tsx` redirects to `/login` when
+`isLoggedIn` is false, and logout clears the store and pushes to `/login`.
+
+Two consequences for the backend, both significant:
+
+1. **The backend owns PIN → cashier resolution.** `POST /auth/login` takes the PIN and returns
+   the cashier and register it maps to. The hardcoded `CASHIERS` map becomes rows in the
+   `cashiers` table.
+2. **`registerId` is no longer fixed at `"01"`.** It is a property of whoever signed in, so it
+   must be resolved per-login and carried on every subsequent request — it scopes open sales,
+   transactions and the sale-number generator. The earlier draft of this spec assumed a single
+   register; that assumption is now wrong (see §3.1).
 
 ### 1.4 Notable gaps between the current frontend and a real backend
 
@@ -98,6 +119,15 @@ Flagging them here rather than silently designing around them:
 6. **No optimistic-concurrency on products** — two cashiers editing the same product silently
    clobber. `updated_at` is returned and can be used as an `If-Unmodified-Since`-style guard later
    if it matters; not specified as required now.
+7. **Auth is client-side and the server layer was removed.** Commit `8f02c7d` deleted
+   `proxy.ts` (the route-guarding middleware) and `app/(auth)/login/actions.ts` (the server
+   action that set the `httpOnly` cookie). Route protection is now a `useEffect` redirect in
+   `app/(pos)/layout.tsx`, and the PIN map ships in the client bundle. Anyone can reach the API
+   directly. **This is a deliberate choice for a single-terminal local grocery POS and the spec
+   does not try to undo it** — see §3.0 for how the backend accommodates it.
+8. **`registerId` now varies per cashier.** PIN `7890` signs in on register `02`. Every
+   register-scoped resource (open sales, transactions, sale-number generators) must key off the
+   signed-in cashier's register rather than a hardcoded `"01"`.
 
 ### 1.5 Conventions
 
@@ -110,8 +140,9 @@ Flagging them here rather than silently designing around them:
   types already declare `id: string`, so existing code needs no type change.
 - **Timestamps**: ISO-8601 UTC strings, matching `new Date().toISOString()`.
 - **Money**: integer rupiah.
-- **Auth**: the existing `pos_session` cookie. The backend issues it on login and validates it on
-  every other route.
+- **Auth**: no cookie and no middleware — both were removed in `8f02c7d`. The frontend holds the
+  session in `localStorage` and sends the register and cashier as explicit request context. See
+  §3.0.
 - **Errors**: `{ "detail": { "code": "PRODUCT_NOT_FOUND", "message": "..." } }`.
 
 ---
@@ -251,44 +282,46 @@ class Register(Base, TimestampMixin):
 
 
 class Cashier(Base, TimestampMixin):
-    """Replaces the hardcoded `cashierName` in session-store.ts."""
+    """Replaces the hardcoded CASHIERS map in session-store.ts.
+
+    The 4-digit PIN both authenticates and *identifies* — it selects the cashier
+    and, through `register_id`, the till they are working. See §1.3.
+    """
 
     __tablename__ = "cashiers"
 
     id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
-    # Shared-password model today; per-cashier PIN is the natural upgrade path.
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    # The PIN is a lookup key, so it must be unique across active cashiers and
+    # queryable — which rules out a per-row salted hash (you cannot look one up
+    # without scanning every cashier and verifying each). Stored as-is; §3.0
+    # explains why that is acceptable here and what to change if it stops being.
+    pin: Mapped[str] = mapped_column(String(8), nullable=False)
+
+    # Which till this cashier signs in to. Drives registerId in the session.
+    register_id: Mapped[str] = mapped_column(
+        ForeignKey("registers.id", ondelete="RESTRICT"), nullable=False
+    )
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    sessions: Mapped[list["Session"]] = relationship(back_populates="cashier")
+    # Same nullable-column trick as products: PIN unique among active cashiers
+    # only, so a retired cashier's PIN can be reissued. See §2.2.
+    pin_active: Mapped[str | None] = mapped_column(String(8))
 
-
-class Session(Base):
-    """Backs the existing httpOnly `pos_session` cookie."""
-
-    __tablename__ = "pos_sessions"  # SESSION is near-reserved; avoid the fight
-
-    id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
-    token: Mapped[str] = mapped_column(
-        String(64), unique=True, index=True, nullable=False
-    )
-
-    cashier_id: Mapped[str] = mapped_column(
-        ForeignKey("cashiers.id", ondelete="CASCADE"), nullable=False
-    )
-    register_id: Mapped[str] = mapped_column(
-        ForeignKey("registers.id", ondelete="CASCADE"), nullable=False
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.current_timestamp(), nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
-
-    cashier: Mapped[Cashier] = relationship(back_populates="sessions")
     register: Mapped[Register] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("pin_active", name="uq_cashiers_pin_live"),
+    )
+
+
+# NOTE: there is no `Session` / `pos_sessions` table. The earlier draft of this
+# spec had one to back an httpOnly `pos_session` cookie, but commit 8f02c7d
+# removed the cookie and the middleware from the frontend — the session now
+# lives in localStorage and the server is stateless with respect to login.
+# See §3.0.
 
 
 class Product(Base, TimestampMixin):
@@ -377,10 +410,12 @@ class OpenSaleLine(Base):
     )
 
 
-# Per-register receipt counters are generators created at register-creation time
-# (see §2.3). This declares the fallback/default one so Alembic and create_all
-# emit it; additional registers get theirs via `CREATE SEQUENCE` at runtime.
-sale_number_seq = Sequence("gen_sale_number_01", metadata=Base.metadata)
+# Per-register receipt counters are generators created alongside their register
+# (see §2.3). Two registers exist today because the PIN map defines two (§3.1),
+# so both are declared here; further registers get theirs via CREATE SEQUENCE
+# at register-creation time.
+sale_number_seq_01 = Sequence("gen_sale_number_01", metadata=Base.metadata)
+sale_number_seq_02 = Sequence("gen_sale_number_02", metadata=Base.metadata)
 
 
 class Transaction(Base):
@@ -478,6 +513,17 @@ AS BEGIN
 END
 ```
 
+The same pattern applies to `cashiers.pin_active`, so a retired cashier's PIN can be handed to
+someone new without colliding with the old row:
+
+```sql
+CREATE TRIGGER cashiers_bi_bu FOR cashiers
+ACTIVE BEFORE INSERT OR UPDATE POSITION 0
+AS BEGIN
+  NEW.pin_active = IIF(NEW.is_active, NEW.pin, NULL);
+END
+```
+
 **Identifier length is 63 characters** on Firebird 4.0+ (it was 31 on 3.0). Every constraint and
 index name above is well inside that, but the names were shortened from the Postgres draft —
 `uq_txn_register_sale_number` became `uq_txn_reg_sale_no` — to leave headroom. Do not let
@@ -563,7 +609,10 @@ which is *outside* transaction control and never blocks:
 
 ```sql
 CREATE SEQUENCE gen_sale_number_01 START WITH 1043 INCREMENT BY 1;
+CREATE SEQUENCE gen_sale_number_02 START WITH 1 INCREMENT BY 1;
 ```
+
+One per register — `01` starts at 1043 to continue the seeded fixtures, `02` is new.
 
 ```python
 # backend/app/services/sale_numbers.py
@@ -632,36 +681,92 @@ checked-in `schema.sql` and skip Alembic until the first production migration is
 
 ## 3. API Endpoints
 
-Base path `/api`. Every route except `POST /auth/login` requires a valid `pos_session` cookie and
-returns `401 UNAUTHORIZED` without one.
+Base path `/api`.
+
+### 3.0 The auth model, and what the backend does about it
+
+Commit `8f02c7d` moved authentication entirely into the client. There is no cookie, no
+middleware, and no server-issued token: `useSessionStore` persists
+`{ isLoggedIn, cashierName, registerId }` to `localStorage`, and `app/(pos)/layout.tsx` guards
+routes with a `useEffect` redirect.
+
+**The backend is therefore stateless with respect to login.** It does not issue or validate
+session tokens, and it does not reject unauthenticated requests. `POST /auth/login` is a
+*lookup* — PIN in, cashier and register out — not a credential exchange. This keeps the API
+aligned with how the frontend now works rather than reintroducing a layer the frontend deleted.
+
+This is a deliberate fit for a single-terminal POS on a shop LAN, and the spec builds to it.
+Two practical guardrails that cost nothing and are worth having anyway:
+
+- **Bind the API to localhost or the LAN interface**, not `0.0.0.0` on a routable network. This
+  is a deployment flag, not code.
+- **Keep the PIN out of URLs.** `POST` with a JSON body, so PINs do not land in access logs or
+  browser history. The spec below does this.
+
+If the shop ever adds a second terminal, remote access, or staff whose actions need to be
+non-repudiable, revisit this: reinstate a server-issued session token, hash the PIN with argon2,
+and validate on every route. The `Cashier` model is shaped so that change is additive — swap
+`pin` for `pin_hash` and add back a sessions table. Nothing else in the schema moves.
+
+**Request context.** Because there is no session on the server, routes that need to know *who*
+and *which register* take it explicitly. Use a required `X-Register-Code` header (and
+`X-Cashier-Id` where the cashier is recorded, as on void), resolved by a FastAPI dependency:
+
+```python
+# backend/app/dependencies.py
+def current_register(
+    x_register_code: Annotated[str, Header()],
+    db: Annotated[Session, Depends(get_db)],
+) -> Register:
+    register = db.scalar(select(Register).where(Register.code == x_register_code,
+                                                Register.is_active))
+    if register is None:
+        raise HTTPException(400, {"code": "UNKNOWN_REGISTER",
+                                  "message": f"Register {x_register_code} tidak dikenal"})
+    return register
+```
+
+A header rather than a query param keeps it out of logs and off every route signature. The
+frontend sets it from `useSessionStore.registerId` in a shared fetch wrapper.
 
 ### 3.1 Auth — `/api/auth`
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/auth/login` | Exchange password for a session cookie |
-| `POST` | `/auth/logout` | Revoke the session, clear the cookie |
-| `GET` | `/auth/session` | Current cashier + register — replaces `session-store.ts` |
+| `POST` | `/auth/login` | Resolve a PIN to its cashier and register |
+| `GET` | `/auth/cashiers` | Active cashiers, for seeding/admin — not used by login |
 
-**`POST /auth/login`**
+There is no `/auth/logout` and no `/auth/session`. Logout is `useSessionStore.logout()` clearing
+`localStorage`; the server holds nothing to revoke. Session state is read from the Zustand store,
+not fetched.
+
+**`POST /auth/login`** — replaces the hardcoded `CASHIERS` map.
 
 ```jsonc
 // request
-{ "password": "kasir123", "registerCode": "01" }   // registerCode optional, defaults to "01"
+{ "pin": "1234" }
 
-// 200 — also sets: Set-Cookie: pos_session=<token>; HttpOnly; SameSite=Lax; Path=/
+// 200
 {
-  "cashier":  { "id": "...", "name": "ShitaMira" },
-  "register": { "id": "...", "code": "01", "name": "Kasir Depan" },
-  "expiresAt": "2026-09-27T01:00:00Z"
+  "cashier":  { "id": "c-...", "name": "Kasir 1" },
+  "register": { "id": "r-...", "code": "01", "name": "Kasir Depan" }
 }
 ```
 
-`401 INVALID_CREDENTIALS` on a wrong password. The existing login server action redirects to
-`/login?error=1`; it should now call this endpoint and forward the cookie.
+`401 INVALID_PIN` on an unknown or inactive PIN. The frontend's `login(password)` action keeps
+its `boolean` return shape — it calls this endpoint, and on `200` sets
+`{ isLoggedIn: true, cashierName, registerId }` from the response instead of from the local map.
+Since `login` becomes async, [login/page.tsx:38](frontend/app/(auth)/login/page.tsx#L38)'s
+`handleSubmit` needs to `await` it.
 
-**`GET /auth/session`** returns the same `cashier` / `register` pair. The frontend's
-`session-store.ts` should hydrate from this instead of its hardcoded defaults.
+Seeding the two existing PINs reproduces today's behavior exactly:
+
+| PIN | Cashier | Register |
+| --- | --- | --- |
+| `1234` | Kasir 1 | `01` |
+| `7890` | Kasir 2 | `02` |
+
+Note that register `02` must exist as a row, with its own `gen_sale_number_02` generator (§2.3).
 
 ### 3.2 Products — `/api/products`
 
@@ -718,7 +823,7 @@ search barcodes), `limit` default 10 to match `MAX_RESULTS`. Emits
 **`POST /products`**
 
 ```jsonc
-// request — updatedBy comes from the session, not the client
+// request — updatedBy is resolved from X-Cashier-Id, not sent in the body
 { "barcode": "8041520233", "name": "Wajan Besi Tuang 25 cm", "price": 285000 }
 ```
 `201` with the created product. `409 BARCODE_TAKEN` if a live product already holds that barcode
@@ -734,7 +839,9 @@ freeing the barcode for reuse), returns `204`.
 
 ### 3.3 Open sales (carts) — `/api/open-sales`
 
-These replace the `pos:open-sales` localStorage slice. All are scoped to the session's register.
+These replace the `pos:open-sales` localStorage slice. All are scoped to the register named by
+`X-Register-Code` (§3.0) — with two registers now in play, a cart parked on `01` must never
+appear on `02`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -839,7 +946,7 @@ Firebird `lock conflict` on the open-sale rows retries rather than surfacing as 
   "total": 285000,
   "tendered": 500000,
   "change": 215000,
-  "cashierName": "ShitaMira",
+  "cashierName": "Kasir 1",
   "registerId": "01",
   "createdAt": "2026-09-26T07:15:00Z",
   "status": "completed"
@@ -877,8 +984,9 @@ Returns exactly what `TransactionsStatStrip` renders:
 }
 ```
 
-**`POST /transactions/{id}/void}`** — sets `status = "voided"`, stamps `voided_at` / `voided_by`
-from the session. `200` with the updated transaction. `409 ALREADY_VOIDED` on a repeat.
+**`POST /transactions/{id}/void`** — sets `status = "voided"`, stamps `voided_at` and
+`voided_by` (from `X-Cashier-Id`). `200` with the updated transaction. `409 ALREADY_VOIDED` on a
+repeat.
 
 **`POST /transactions/{id}/reprint`** — records the reprint and returns `200`. The frontend
 currently only fires a toast; this gives the action an audit trail. Optional for a first cut.
@@ -887,9 +995,11 @@ currently only fires a toast; this gives the action an audit trail. Optional for
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/registers` | Active registers, for a register picker at login |
+| `GET` | `/registers` | Active registers |
 
-Low priority — the app is single-register today.
+No register picker is needed at login — the PIN determines the register (§3.1). This endpoint is
+for admin and for seeding. Creating a register must also create its `gen_sale_number_<code>`
+generator, so route it through a service rather than a bare `INSERT`.
 
 ---
 
@@ -899,7 +1009,7 @@ Low priority — the app is single-register today.
 backend/
   main.py                  # FastAPI app, CORS, router mounting
   app/
-    config.py              # pydantic-settings: DATABASE_URL, SESSION_TTL, CORS origins
+    config.py              # pydantic-settings: DATABASE_URL, CORS origins, bind host
     database.py            # engine, sessionmaker, get_db dependency
     models.py              # §2.1
     types.py               # UUIDStr and other Firebird type helpers (§2.2)
@@ -910,7 +1020,7 @@ backend/
     services/
       sale_numbers.py      # generator allocation + retry helper (§2.3)
       checkout.py          # the commit transaction
-    dependencies.py        # current_session / current_cashier
+    dependencies.py        # current_register / current_cashier (§3.0 — header-based)
     seed.py                # ports frontend/lib/data/seed-*.ts for dev
   alembic/
   schema.sql               # generators + triggers Alembic will not autogenerate
@@ -927,13 +1037,17 @@ dependencies = [
     "firebird-driver>=2.0",       # DB-API layer, needs the Firebird client library
     "alembic",
     "pydantic-settings",
-    "argon2-cffi",
     "python-multipart",
 ]
 ```
 
 `requires-python = ">=3.12"` in the existing file is compatible — `sqlalchemy-firebird` requires
-3.11+.
+3.11+. No password-hashing library is listed: PINs are looked up directly (§3.0). Add
+`argon2-cffi` if the auth model is ever tightened.
+
+**CORS.** The frontend calls the API from the browser now that there is no server action
+proxying requests, so `CORSMiddleware` must allow the Next.js origin
+(`http://localhost:3000` in dev). `allow_credentials` is not needed — there are no cookies.
 
 **Client library.** `firebird-driver` binds to the native Firebird client (`fbclient.so` /
 `fbclient.dll`), which is **not** bundled with the wheel. On the dev Mac: `brew install firebird`,
@@ -949,10 +1063,14 @@ common first-run failure and worth putting in the README.
    in this project and it is much easier to debug in isolation.
 1. Config, database, `Base`, `types.py`, Alembic baseline (plus `schema.sql` for generators and
    the `products_bi_bu` trigger).
-2. `Register` + `Cashier` + `Session`; `/api/auth/*`; point the existing server action at it.
+2. `Register` + `Cashier`; `POST /api/auth/login`; swap the `CASHIERS` map in
+   `session-store.ts` for a fetch, keeping `login()`'s boolean contract (it becomes async, so
+   the login page must await it). Seed both registers and both generators.
 3. `Product` + all of `/api/products`; swap `products-store.ts` to fetch. Lowest-risk slice —
    the catalog has no cross-entity invariants.
-4. `OpenSale` / `OpenSaleLine` + `/api/open-sales`; move `sales-store.ts` to server-backed carts.
+4. `OpenSale` / `OpenSaleLine` + `/api/open-sales`; move `sales-store.ts` to server-backed
+   carts. Add the shared fetch wrapper that attaches `X-Register-Code` here — everything after
+   this step depends on it.
 5. `Transaction` / `TransactionLine`, the generator-based sale-number allocator (§2.3), and the
    checkout service. This closes the `saleNumber: null` gap from §1.4.
 6. Void, summary, reprint.
