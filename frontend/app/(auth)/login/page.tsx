@@ -1,30 +1,48 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 
-import { login } from "./actions"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp"
 import { Label } from "@/components/ui/label"
 import { formatClock, formatDateID } from "@/lib/format"
 import { getGreeting } from "@/lib/greeting"
-
-function LoginError() {
-  const searchParams = useSearchParams()
-  if (searchParams.get("error") !== "1") return null
-  return (
-    <p className="mt-2 text-sm text-destructive">Kata sandi salah. Coba lagi.</p>
-  )
-}
+import { useSessionHydrated, useSessionStore } from "@/lib/store/session-store"
 
 export default function LoginPage() {
+  const router = useRouter()
   const [now, setNow] = useState(() => new Date())
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState(false)
+  const hydrated = useSessionHydrated()
+  const isLoggedIn = useSessionStore((state) => state.isLoggedIn)
+  const login = useSessionStore((state) => state.login)
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    if (hydrated && isLoggedIn) {
+      router.replace("/")
+    }
+  }, [hydrated, isLoggedIn, router])
+
+  function handleSubmit(formData: FormData) {
+    const value = String(formData.get("password") ?? "")
+    if (login(value)) {
+      router.push("/")
+    } else {
+      setError(true)
+      setPassword("")
+    }
+  }
 
   return (
     <div className="flex h-svh bg-shell">
@@ -60,20 +78,35 @@ export default function LoginPage() {
           <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
             Masukkan kata sandi kasir untuk membuka mesin kasir.
           </p>
-          <form action={login} className="contents">
+          <form action={handleSubmit} className="contents">
             <Label htmlFor="password" className="mt-7.5 mb-2">
               Kata sandi
             </Label>
-            <Input
+            <input type="hidden" name="password" value={password} />
+            <InputOTP
               id="password"
-              name="password"
-              type="password"
+              maxLength={4}
               autoFocus
-              className="h-13.5 rounded-none border-2 border-primary bg-card px-4 font-mono text-[22px] tracking-[0.3em] shadow-[0_0_0_4px_rgba(26,92,84,0.1)] focus-visible:border-primary"
-            />
-            <Suspense>
-              <LoginError />
-            </Suspense>
+              value={password}
+              onChange={(value) => {
+                setPassword(value)
+                setError(false)
+              }}
+              containerClassName="justify-between"
+            >
+              <InputOTPGroup className="w-full justify-between gap-2">
+                {[0, 1, 2, 3].map((index) => (
+                  <InputOTPSlot
+                    key={index}
+                    index={index}
+                    className="h-13.5 w-1/5 flex-1 rounded-none border-2 border-primary bg-card font-mono text-[22px] shadow-[0_0_0_4px_rgba(26,92,84,0.1)] data-[active=true]:border-primary"
+                  />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+            {error && (
+              <p className="mt-2 text-sm text-destructive">Kata sandi salah. Coba lagi.</p>
+            )}
             <Button type="submit" className="mt-3.5 h-auto w-full py-4 text-[15.5px] normal-case">
               Masuk
             </Button>

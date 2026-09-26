@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { LogOut } from "lucide-react"
 
-import { logout } from "@/app/(auth)/login/actions"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useSessionStore } from "@/lib/store/session-store"
@@ -17,7 +16,13 @@ const NAV_ITEMS = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const { cashierName, registerId } = useSessionStore()
+  const router = useRouter()
+  const { cashierName, registerId, logout } = useSessionStore()
+
+  function handleLogout() {
+    logout()
+    router.push("/login")
+  }
 
   return (
     <div className="flex h-svh flex-col">
@@ -46,17 +51,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="ml-auto flex items-center gap-5.5 font-mono text-[11.5px] text-shell-foreground/60">
           <span>Register {registerId}</span>
           <span className="text-shell-foreground">{cashierName}</span>
-          <form action={logout}>
-            <Button
-              type="submit"
-              variant="ghost"
-              size="icon-sm"
-              className="text-shell-foreground/60 hover:bg-shell-foreground/10 hover:text-shell-foreground"
-              aria-label="Keluar"
-            >
-              <LogOut />
-            </Button>
-          </form>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleLogout}
+            className="text-shell-foreground/60 hover:bg-shell-foreground/10 hover:text-shell-foreground"
+            aria-label="Keluar"
+          >
+            <LogOut />
+          </Button>
         </div>
       </header>
       <main className="flex min-h-0 flex-1 flex-col bg-background">{children}</main>
