@@ -8,6 +8,7 @@ is a .env setting (PRINTER_BACKEND), not a code change -- see config.py.
 from __future__ import annotations
 
 from datetime import timezone
+from zoneinfo import ZoneInfo
 
 import barcode as barcode_lib
 from barcode.writer import ImageWriter
@@ -19,6 +20,12 @@ from ..config import settings
 from ..models import Transaction, TransactionStatus
 
 STORE_NAME = "TOKO BU ISTI"
+
+# The shop is on one Windows PC in Indonesia; the frontend gets local time for
+# free because browser Date methods use the OS timezone, but this runs server-side
+# in UTC (created_at is stored in UTC -- see the Firebird session_time_zone note in
+# database.py), so the conversion has to happen explicitly here.
+STORE_TIMEZONE = ZoneInfo("Asia/Jakarta")
 
 # The TM-U220D is a 76/69.5/57.5mm dot-matrix printer, not an 80mm thermal one --
 # there is no 80mm mode. At the shop's 76mm roll, Font A prints 35 columns per
@@ -70,7 +77,7 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
             printer.text("** DIBATALKAN **\n")
             printer.set(align="center", bold=False)
 
-        created_at = txn.created_at.replace(tzinfo=timezone.utc)
+        created_at = txn.created_at.replace(tzinfo=timezone.utc).astimezone(STORE_TIMEZONE)
         printer.text(f"#{txn.sale_number}\n")
         printer.text(f"{created_at.strftime('%d-%m-%Y %H:%M')}  {txn.cashier_name}\n")
         printer.text("-" * LINE_WIDTH + "\n")
