@@ -24,7 +24,7 @@ Three screens behind a password gate:
 
 | Route | Screen | Purpose |
 | --- | --- | --- |
-| `/login` | Login | 4-digit PIN entry; the PIN identifies the cashier and their register |
+| `/login` | Login | 4-digit PIN entry; the PIN identifies which cashier is signing in |
 | `/` | Kasir (checkout) | Scan items into a cart, park multiple carts, take cash payment |
 | `/products` | Produk | CRUD product catalog, search by name/barcode, paginated 8/page |
 | `/transactions` | Transaksi | Day's transaction list, receipt detail, void, reprint, stat strip |
@@ -35,7 +35,7 @@ Four entities, mapping directly to `frontend/lib/types.ts`:
 
 - **Product** — catalog item keyed by `barcode`. Fields: `barcode`, `name`, `price`, plus audit
   `updatedAt` / `updatedBy`.
-- **OpenSale** — a parked, unpaid cart. The register holds *several simultaneously*; the cashier
+- **OpenSale** — a parked, unpaid cart. The till holds *several simultaneously*; the cashier
   cycles between them with `,` / `.` / `F3`. Currently persisted client-side under
   `pos:open-sales`. This is the concept most in need of server ownership, since a parked cart
   must survive a browser refresh or a move to another terminal.
@@ -44,8 +44,8 @@ Four entities, mapping directly to `frontend/lib/types.ts`:
   receipt must show the price charged at the time, not today's catalog price. The backend must
   preserve this.
 - **Transaction** — a committed sale: the lines, `total`, `tendered`, `change`, `cashierName`,
-  `registerId`, `createdAt`, and `status` of `completed` | `voided`. Voiding is a soft state
-  change, never a delete.
+  `createdAt`, and `status` of `completed` | `voided`. Voiding is a soft state change, never a
+  delete. (`registerId` is in the current TS type but is being dropped — §1.6.)
 
 ### 1.3 Behaviors the backend must support
 
@@ -57,8 +57,8 @@ lookup and should return a clear 404 for misses so the frontend can render that 
 **Sale numbering.** `Transaction.saleNumber` is `number | null` and the frontend currently commits
 with `saleNumber: null` — it has no way to allocate one. Seeded transactions show `1042`, `1041`,
 etc. **This is a gap the backend must close**: the server assigns a monotonically increasing sale
-number per register on commit. The receipt panel and transaction table both render `#{saleNumber}`
-and fall back to `—`, so this is visibly broken until the backend owns it.
+number on commit. The receipt panel and transaction table both render `#{saleNumber}` and fall
+back to `—`, so this is visibly broken until the backend owns it.
 
 **Payment.** Cash only. `change = tendered - total`; confirm is blocked while `tendered < total`.
 Server must recompute `total` from the lines rather than trusting the client, and reject
@@ -83,20 +83,17 @@ const CASHIERS: Record<string, { cashierName: string; registerId: string }> = {
 }
 ```
 
-The PIN is a **cashier identifier, not just a gate** — it selects both who is signed in and
-which register they are on. `useSessionStore` persists `{ isLoggedIn, cashierName, registerId }`
-to `localStorage` under `pos:session`; `app/(pos)/layout.tsx` redirects to `/login` when
-`isLoggedIn` is false, and logout clears the store and pushes to `/login`.
+The PIN is a **cashier identifier, not just a gate** — it selects who is signed in.
+`useSessionStore` persists `{ isLoggedIn, cashierName, registerId }` to `localStorage` under
+`pos:session`; `app/(pos)/layout.tsx` redirects to `/login` when `isLoggedIn` is false, and
+logout clears the store and pushes to `/login`.
 
-Two consequences for the backend, both significant:
+**The backend owns PIN → cashier resolution.** `POST /auth/login` takes the PIN and returns the
+cashier it maps to; the hardcoded `CASHIERS` map becomes rows in the `cashiers` table.
 
-1. **The backend owns PIN → cashier resolution.** `POST /auth/login` takes the PIN and returns
-   the cashier and register it maps to. The hardcoded `CASHIERS` map becomes rows in the
-   `cashiers` table.
-2. **`registerId` is no longer fixed at `"01"`.** It is a property of whoever signed in, so it
-   must be resolved per-login and carried on every subsequent request — it scopes open sales,
-   transactions and the sale-number generator. The earlier draft of this spec assumed a single
-   register; that assumption is now wrong (see §3.1).
+**The register concept is removed entirely** (decision 2026-09-26 — see §1.6). The store's
+`registerId` and the `"02"` on PIN `7890` come out of the frontend too; the cashier is the only
+actor identified.
 
 ### 1.4 Notable gaps between the current frontend and a real backend
 
@@ -123,11 +120,11 @@ Flagging them here rather than silently designing around them:
    `proxy.ts` (the route-guarding middleware) and `app/(auth)/login/actions.ts` (the server
    action that set the `httpOnly` cookie). Route protection is now a `useEffect` redirect in
    `app/(pos)/layout.tsx`, and the PIN map ships in the client bundle. Anyone can reach the API
-   directly. **This is a deliberate choice for a single-terminal local grocery POS and the spec
-   does not try to undo it** — see §3.0 for how the backend accommodates it.
-8. **`registerId` now varies per cashier.** PIN `7890` signs in on register `02`. Every
-   register-scoped resource (open sales, transactions, sale-number generators) must key off the
-   signed-in cashier's register rather than a hardcoded `"01"`.
+   directly. **This is a deliberate choice for a small local grocery POS on a private LAN and
+   the spec does not try to undo it** — see §3.0 for how the backend accommodates it.
+8. **`registerId` is being removed from the frontend.** The PIN map, `Transaction` type, three
+   display sites and the seed fixtures all carry a register that the backend does not model —
+   see §1.6 for the exact edits.
 
 ### 1.5 Conventions
 
@@ -141,9 +138,49 @@ Flagging them here rather than silently designing around them:
 - **Timestamps**: ISO-8601 UTC strings, matching `new Date().toISOString()`.
 - **Money**: integer rupiah.
 - **Auth**: no cookie and no middleware — both were removed in `8f02c7d`. The frontend holds the
-  session in `localStorage` and sends the register and cashier as explicit request context. See
-  §3.0.
+  session in `localStorage` and sends the cashier as explicit request context. See §3.0.
+- **No register/terminal concept** anywhere in the schema or API. See §1.6.
 - **Errors**: `{ "detail": { "code": "PRODUCT_NOT_FOUND", "message": "..." } }`.
+
+### 1.6 The register concept is removed entirely
+
+**There is no register anywhere in this design** (decision 2026-09-26): no table, no FK, no
+column, no config value, no header, no API field. The cashier is the only actor the system
+identifies.
+
+Why: the shop runs up to two laptops (one acting as server + client, one client-only), but both
+talk to the same database and sell from the same catalog, drawer and receipt sequence. **Which
+physical laptop rang a sale is not information the business acts on** — nobody reconciles a
+drawer per laptop or reports per terminal. Cashier identification already answers "who sold
+this", which is the question that gets asked.
+
+Recording a terminal identifier "just in case" would be speculative denormalization: a column on
+every transaction, forever, carrying data no feature reads. If per-terminal reporting is ever
+genuinely needed, adding it then is a small migration — and it can be done properly, with a real
+`registers` table rather than the bare string a placeholder would have left behind.
+
+**This supersedes what the frontend currently does**, and the frontend should be updated to
+match:
+
+| Location | Today | Change to |
+| --- | --- | --- |
+| [session-store.ts:5](frontend/lib/store/session-store.ts#L5) | `CASHIERS` map with `registerId` | drop `registerId` from the map and from `SessionState` |
+| [types.ts:33](frontend/lib/types.ts#L33) | `Transaction.registerId: string` | delete the field |
+| [app-shell.tsx:52](frontend/components/pos/app-shell.tsx#L52) | `Register {registerId}` | drop it; the header already shows `cashierName` |
+| [receipt-panel.tsx:47](frontend/components/pos/receipt-panel.tsx#L47) | `REG {registerId} · {cashierName}` | `{cashierName}` alone |
+| [transactions/page.tsx:41](frontend/app/(pos)/transactions/page.tsx#L41) | `· register {registerId}` | drop the clause |
+| [seed-transactions.ts](frontend/lib/data/seed-transactions.ts) | `registerId: "01"` ×7 | remove |
+
+Both PINs then resolve to a cashier and nothing else. The `"02"` on PIN `7890` — which was
+always placeholder data, never a second physical till — disappears with the field.
+
+Consequences for the backend, so nobody reintroduces this by reflex:
+
+- **One generator**, `gen_sale_number`. Receipts are one continuous sequence for the shop.
+- **`transactions.sale_number` is plainly `unique`**, not composite with anything.
+- **Open sales belong to the shop.** A cart parked on one laptop is resumable on the other —
+  which is a genuine *benefit* of not scoping by terminal, not merely an absence of one.
+- **`X-Cashier-Id` is the only request context header.**
 
 ---
 
@@ -280,28 +317,15 @@ class TransactionStatus(str, enum.Enum):
     voided = "voided"
 
 
-class Register(Base, TimestampMixin):
-    """A physical till. `code` is the "01" shown in the header and on receipts."""
-
-    __tablename__ = "registers"
-
-    id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
-    code: Mapped[str] = mapped_column(String(8), unique=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(64), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    # NOTE: no `next_sale_number` column. Under Firebird the receipt counter is a
-    # GENERATOR, not a locked row — see §2.3.
-
-    open_sales: Mapped[list["OpenSale"]] = relationship(back_populates="register")
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="register")
+# NOTE: there is no register/terminal entity anywhere in this schema. The cashier
+# is the only actor identified. See §1.6.
 
 
 class Cashier(Base, TimestampMixin):
     """Replaces the hardcoded CASHIERS map in session-store.ts.
 
-    The 4-digit PIN both authenticates and *identifies* — it selects the cashier
-    and, through `register_id`, the till they are working. See §1.3.
+    The 4-digit PIN both authenticates and *identifies* — it selects which
+    cashier is signed in. See §1.3.
     """
 
     __tablename__ = "cashiers"
@@ -315,18 +339,11 @@ class Cashier(Base, TimestampMixin):
     # explains why that is acceptable here and what to change if it stops being.
     pin: Mapped[str] = mapped_column(String(8), nullable=False)
 
-    # Which till this cashier signs in to. Drives registerId in the session.
-    register_id: Mapped[str] = mapped_column(
-        ForeignKey("registers.id", ondelete="RESTRICT"), nullable=False
-    )
-
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Same nullable-column trick as products: PIN unique among active cashiers
     # only, so a retired cashier's PIN can be reissued. See §2.2.
     pin_active: Mapped[str | None] = mapped_column(String(8))
-
-    register: Mapped[Register] = relationship()
 
     __table_args__ = (
         UniqueConstraint("pin_active", name="uq_cashiers_pin_live"),
@@ -374,27 +391,20 @@ class Product(Base, TimestampMixin):
 
 
 class OpenSale(Base, TimestampMixin):
-    """A parked, unpaid cart. Several are open per register at once."""
+    """A parked, unpaid cart. Several are open at once, shop-wide — so a cart parked
+    on one laptop is resumable on the other (§1.6)."""
 
     __tablename__ = "open_sales"
 
     id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
-    register_id: Mapped[str] = mapped_column(
-        ForeignKey("registers.id", ondelete="CASCADE"), nullable=False, index=True
-    )
     # Stable ordering for the OpenSalesStrip tabs and for `,` / `.` cycling.
     # The strip labels tabs by 1-based position, so order must be deterministic.
-    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)
 
-    register: Mapped[Register] = relationship(back_populates="open_sales")
     lines: Mapped[list["OpenSaleLine"]] = relationship(
         back_populates="sale",
         cascade="all, delete-orphan",
         order_by="OpenSaleLine.position",
-    )
-
-    __table_args__ = (
-        Index("ix_open_sales_reg_pos", "register_id", "position"),
     )
 
 
@@ -426,12 +436,9 @@ class OpenSaleLine(Base):
     )
 
 
-# Per-register receipt counters are generators created alongside their register
-# (see §2.3). Two registers exist today because the PIN map defines two (§3.1),
-# so both are declared here; further registers get theirs via CREATE SEQUENCE
-# at register-creation time.
-sale_number_seq_01 = Sequence("gen_sale_number_01", metadata=Base.metadata)
-sale_number_seq_02 = Sequence("gen_sale_number_02", metadata=Base.metadata)
+# One shop-wide receipt counter (§1.6). Firebird generators are lock-free, which is
+# why the counter is a sequence and not a locked row (§2.3).
+sale_number_seq = Sequence("gen_sale_number", metadata=Base.metadata)
 
 
 class Transaction(Base):
@@ -439,20 +446,17 @@ class Transaction(Base):
 
     id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
 
-    # Allocated from the register's generator inside the checkout transaction.
-    # Non-null for every committed transaction — the frontend's `number | null`
-    # reflects only its inability to allocate one locally.
-    sale_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Allocated from gen_sale_number inside the checkout transaction. Non-null for
+    # every committed transaction — the frontend's `number | null` reflects only
+    # its inability to allocate one locally.
+    sale_number: Mapped[int] = mapped_column(Integer, unique=True, nullable=False)
 
-    register_id: Mapped[str] = mapped_column(
-        ForeignKey("registers.id", ondelete="RESTRICT"), nullable=False, index=True
-    )
     cashier_id: Mapped[str | None] = mapped_column(
         ForeignKey("cashiers.id", ondelete="SET NULL")
     )
-    # Denormalized for the receipt — must not change if the cashier is renamed.
+    # Denormalized for the receipt — must not change if the cashier is later
+    # renamed or deactivated. There is no terminal/register column (§1.6).
     cashier_name: Mapped[str] = mapped_column(String(80), nullable=False)
-    register_code: Mapped[str] = mapped_column(String(8), nullable=False)
 
     total: Mapped[int] = mapped_column(BigInteger, nullable=False)
     tendered: Mapped[int] = mapped_column(BigInteger, nullable=False)
@@ -471,7 +475,6 @@ class Transaction(Base):
     voided_at: Mapped[datetime | None] = mapped_column(DateTime)
     voided_by: Mapped[str | None] = mapped_column(String(80))
 
-    register: Mapped[Register] = relationship(back_populates="transactions")
     lines: Mapped[list["TransactionLine"]] = relationship(
         back_populates="transaction",
         cascade="all, delete-orphan",
@@ -479,10 +482,10 @@ class Transaction(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("register_id", "sale_number", name="uq_txn_reg_sale_no"),
-        # Serves the transactions list and the daily stat strip. DESC because
-        # every query on it is newest-first.
-        Index("ix_txn_reg_created", "register_id", "created_at"),
+        # `sale_number` is unique outright now that there is one counter, declared
+        # inline on the column above. Serves the transactions list and the daily
+        # stat strip; every query on it is newest-first.
+        Index("ix_txn_created", "created_at"),
         CheckConstraint("tendered >= total", name="ck_txn_tender_covers_total"),
     )
 
@@ -542,8 +545,9 @@ END
 
 **Identifier length is 63 characters** on Firebird 4.0+ (it was 31 on 3.0). Every constraint and
 index name above is well inside that, but the names were shortened from the Postgres draft —
-`uq_txn_register_sale_number` became `uq_txn_reg_sale_no` — to leave headroom. Do not let
-Alembic autogenerate long implicit names.
+`ck_products_price_positive` is 26 characters and `uq_open_sale_line_barcode` was shortened to
+`uq_osl_sale_barcode` — comfortably inside the limit, with headroom for prefixes Alembic may
+add. Do not let Alembic autogenerate long implicit names.
 
 **A UUID PK type.** Firebird has no `UUID` type. Store as `CHAR(36) CHARACTER SET OCTETS`:
 
@@ -617,32 +621,32 @@ rather than computed, so a reprint in six months matches the paper original.
 
 ### 2.3 Sale numbers: generators, not locked rows
 
-The Postgres-shaped design used `SELECT ... FOR UPDATE` on a `registers.next_sale_number` column.
-**Do not do this on Firebird.** Firebird's MVCC raises a `lock conflict` / `deadlock` error on
-write-write contention rather than queueing, so a locked counter row turns every concurrent
-checkout into an application-level retry. Firebird's native answer is a **generator** (sequence),
-which is *outside* transaction control and never blocks:
+The Postgres-shaped design used `SELECT ... FOR UPDATE` on a counter column. **Do not do this on
+Firebird.** Firebird's MVCC raises a `lock conflict` / `deadlock` error on write-write contention
+rather than queueing, so a locked counter row turns every concurrent checkout into an
+application-level retry. Firebird's native answer is a **generator** (sequence), which is
+*outside* transaction control and never blocks:
 
 ```sql
-CREATE SEQUENCE gen_sale_number_01 START WITH 1043 INCREMENT BY 1;
-CREATE SEQUENCE gen_sale_number_02 START WITH 1 INCREMENT BY 1;
+CREATE SEQUENCE gen_sale_number START WITH 1043 INCREMENT BY 1;
 ```
 
-One per register — `01` starts at 1043 to continue the seeded fixtures, `02` is new.
+**One generator, shop-wide** (§1.6). It starts at 1043 to continue the seeded fixtures, whose
+highest `saleNumber` is 1042.
 
 ```python
 # backend/app/services/sale_numbers.py
-from sqlalchemy import Sequence, text
+from sqlalchemy import text
 
-def allocate_sale_number(db, register_code: str) -> int:
+_NEXT_SALE_NUMBER = text("SELECT NEXT VALUE FOR gen_sale_number FROM rdb$database")
+
+def allocate_sale_number(db) -> int:
     """Atomic, lock-free, and safe under any isolation level."""
-    seq_name = f"gen_sale_number_{register_code}"
-    return db.execute(text(f"SELECT NEXT VALUE FOR {seq_name} FROM rdb$database")).scalar_one()
+    return db.execute(_NEXT_SALE_NUMBER).scalar_one()
 ```
 
-One generator per register, created when the register is created. `register_code` is validated
-against `^[0-9A-Za-z_]{1,8}$` before interpolation — generator names cannot be bound parameters,
-so this is the one place a name is formatted into SQL and it must not accept arbitrary input.
+A fixed generator name means the statement is a constant — no name is formatted into SQL, so the
+input-validation caveat a dynamically-named generator would need is gone.
 
 **The tradeoff, decided:** generator values are consumed outside transaction control, so a
 rolled-back checkout burns its number and the receipt sequence develops gaps — `#1043` may be
@@ -708,16 +712,18 @@ routes with a `useEffect` redirect.
 
 **The backend is therefore stateless with respect to login.** It does not issue or validate
 session tokens, and it does not reject unauthenticated requests. `POST /auth/login` is a
-*lookup* — PIN in, cashier and register out — not a credential exchange. This keeps the API
+*lookup* — PIN in, cashier out — not a credential exchange. This keeps the API
 aligned with how the frontend now works rather than reintroducing a layer the frontend deleted.
 
-This is a deliberate fit for a single-terminal POS on a shop LAN, and the spec builds to it.
+This is a deliberate fit for a two-laptop POS on a private shop LAN, and the spec builds to it.
 Two practical guardrails that cost nothing and are worth having anyway:
 
-- **Bind the API to `127.0.0.1`**, not `0.0.0.0`. Production is one Windows machine running
-  both the frontend and the API, so nothing needs to reach it over the network. This is a
-  uvicorn flag (`--host 127.0.0.1`), not code. If a second terminal is ever added, that is the
-  moment to revisit the whole auth model (§6), not just this flag.
+- **Bind the API to the LAN interface, not `0.0.0.0`.** The client laptop must reach the server
+  laptop, so `127.0.0.1` is too narrow — bind to the server's static LAN IP
+  (`--host 192.168.1.10`). That keeps the API off any other interface the laptop may acquire,
+  such as a public Wi-Fi network or a tethered connection, where an unauthenticated API would be
+  genuinely exposed. A host-firewall rule limiting port 8000 to the local subnet is the belt to
+  this braces.
 - **Keep the PIN out of URLs.** `POST` with a JSON body, so PINs do not land in access logs or
   browser history. The spec below does this.
 
@@ -726,32 +732,39 @@ non-repudiable, revisit this: reinstate a server-issued session token, hash the 
 and validate on every route. The `Cashier` model is shaped so that change is additive — swap
 `pin` for `pin_hash` and add back a sessions table. Nothing else in the schema moves.
 
-**Request context.** Because there is no session on the server, routes that need to know *who*
-and *which register* take it explicitly. Use a required `X-Register-Code` header (and
-`X-Cashier-Id` where the cashier is recorded, as on void), resolved by a FastAPI dependency:
+**Request context.** Because there is no session on the server, routes that record *who* did
+something take the cashier explicitly, via an `X-Cashier-Id` header resolved by a dependency:
 
 ```python
 # backend/app/dependencies.py
-def current_register(
-    x_register_code: Annotated[str, Header()],
+def current_cashier(
+    x_cashier_id: Annotated[str, Header()],
     db: Annotated[Session, Depends(get_db)],
-) -> Register:
-    register = db.scalar(select(Register).where(Register.code == x_register_code,
-                                                Register.is_active))
-    if register is None:
-        raise HTTPException(400, {"code": "UNKNOWN_REGISTER",
-                                  "message": f"Register {x_register_code} tidak dikenal"})
-    return register
+) -> Cashier:
+    cashier = db.scalar(
+        select(Cashier).where(Cashier.id == x_cashier_id, Cashier.is_active)
+    )
+    if cashier is None:
+        raise HTTPException(400, {"code": "UNKNOWN_CASHIER",
+                                  "message": "Kasir tidak dikenal"})
+    return cashier
 ```
 
 A header rather than a query param keeps it out of logs and off every route signature. The
-frontend sets it from `useSessionStore.registerId` in a shared fetch wrapper.
+frontend sets it in a shared fetch wrapper; `POST /auth/login` returns `cashier.id` for it to
+store alongside the name.
+
+It is the **only** context header. Four routes need it: `POST /products` and
+`PATCH /products/{id}` (for `updated_by`), `POST /transactions` (for `cashier_name`), and
+`POST /transactions/{id}/void` (for `voided_by`). Everything else needs no actor at all.
+
+There is no terminal or register header, because nothing is scoped that way (§1.6).
 
 ### 3.1 Auth — `/api/auth`
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/auth/login` | Resolve a PIN to its cashier and register |
+| `POST` | `/auth/login` | Resolve a PIN to its cashier |
 | `GET` | `/auth/cashiers` | Active cashiers, for seeding/admin — not used by login |
 
 There is no `/auth/logout` and no `/auth/session`. Logout is `useSessionStore.logout()` clearing
@@ -766,25 +779,26 @@ not fetched.
 
 // 200
 {
-  "cashier":  { "id": "c-...", "name": "Kasir 1" },
-  "register": { "id": "r-...", "code": "01", "name": "Kasir Depan" }
+  "cashier": { "id": "c-...", "name": "Kasir 1" }
 }
 ```
 
 `401 INVALID_PIN` on an unknown or inactive PIN. The frontend's `login(password)` action keeps
 its `boolean` return shape — it calls this endpoint, and on `200` sets
-`{ isLoggedIn: true, cashierName, registerId }` from the response instead of from the local map.
-Since `login` becomes async, [login/page.tsx:38](frontend/app/(auth)/login/page.tsx#L38)'s
+`{ isLoggedIn: true, cashierId, cashierName }` from the response instead of from the local map —
+note `registerId` is gone and `cashierId` replaces it, since `X-Cashier-Id` needs it. Since
+`login` becomes async, [login/page.tsx:38](frontend/app/(auth)/login/page.tsx#L38)'s
 `handleSubmit` needs to `await` it.
 
-Seeding the two existing PINs reproduces today's behavior exactly:
+Seeding the two existing PINs:
 
-| PIN | Cashier | Register |
-| --- | --- | --- |
-| `1234` | Kasir 1 | `01` |
-| `7890` | Kasir 2 | `02` |
+| PIN | Cashier |
+| --- | --- |
+| `1234` | Kasir 1 |
+| `7890` | Kasir 2 |
 
-Note that register `02` must exist as a row, with its own `gen_sale_number_02` generator (§2.3).
+Per §1.6 the register column is gone from both PINs; each resolves to a cashier and nothing
+else.
 
 ### 3.2 Products — `/api/products`
 
@@ -857,13 +871,13 @@ freeing the barcode for reuse), returns `204`.
 
 ### 3.3 Open sales (carts) — `/api/open-sales`
 
-These replace the `pos:open-sales` localStorage slice. All are scoped to the register named by
-`X-Register-Code` (§3.0) — with two registers now in play, a cart parked on `01` must never
-appear on `02`.
+These replace the `pos:open-sales` localStorage slice. There is one set of carts for the shop,
+not per terminal (§1.6) — so a cart parked on the server laptop can be resumed on the client
+laptop, which the localStorage version could not do.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/open-sales` | All parked carts for this register |
+| `GET` | `/open-sales` | All parked carts |
 | `POST` | `/open-sales` | New empty cart (`/baru`) |
 | `GET` | `/open-sales/{id}` | One cart |
 | `DELETE` | `/open-sales/{id}` | Discard a cart (`/hapus`) |
@@ -895,8 +909,8 @@ recompute for the summary panel):
 }
 ```
 
-**`GET /open-sales`** returns `{ "items": [...] }` ordered by `position`. If the register has no
-carts, the server creates and returns one empty cart — the frontend always assumes at least one
+**`GET /open-sales`** returns `{ "items": [...] }` ordered by `position`. If there are no carts,
+the server creates and returns one empty cart — the frontend always assumes at least one
 active sale exists (`removeActiveSale` falls back to `makeEmptySale()`).
 
 **`POST /open-sales/{id}/scan`**
@@ -932,7 +946,7 @@ expects.
 **`PATCH /open-sales/{id}/lines/{lineId}`** — body `{ "qty": 3 }`. `qty <= 0` deletes the line,
 matching `setLineQty`. Returns the updated cart.
 
-**`DELETE /open-sales/{id}`** — `204`. If it was the register's last cart, the server creates a
+**`DELETE /open-sales/{id}`** — `204`. If it was the last cart, the server creates a
 fresh empty one; the response body may carry `{ "replacement": { /* cart */ } }` so the client
 does not need a second round trip.
 
@@ -948,7 +962,7 @@ does not need a second round trip.
 | `POST` | `/transactions/{id}/reprint` | Log a receipt reprint |
 
 **`POST /transactions`** — the critical path. In one database transaction: allocate `saleNumber`
-from the register's generator (§2.3 — no row lock), recompute `total` from the cart's lines, copy
+from `gen_sale_number` (§2.3 — no row lock), recompute `total` from the cart's lines, copy
 lines into `transaction_lines`, delete the open sale, commit. Wrap in the `with_retry` helper so a
 Firebird `lock conflict` on the open-sale rows retries rather than surfacing as a 500.
 
@@ -965,7 +979,6 @@ Firebird `lock conflict` on the open-sale rows retries rather than surfacing as 
   "tendered": 500000,
   "change": 215000,
   "cashierName": "Kasir 1",
-  "registerId": "01",
   "createdAt": "2026-09-26T07:15:00Z",
   "status": "completed"
 }
@@ -989,7 +1002,7 @@ id. Note this is a small change from today's behavior, where every transaction a
 lines attached.
 
 **`GET /transactions/summary`** — accepts the same `from` / `to`. A single aggregate query over
-`ix_txn_reg_created`; `gross` needs a join to `transaction_lines` (or read it from
+`ix_txn_created`; `gross` needs a join to `transaction_lines` (or read it from
 `SUM(transactions.total)` for completed rows, which is equal given no discounts exist yet).
 Returns exactly what `TransactionsStatStrip` renders:
 
@@ -1009,16 +1022,6 @@ repeat.
 **`POST /transactions/{id}/reprint`** — records the reprint and returns `200`. The frontend
 currently only fires a toast; this gives the action an audit trail. Optional for a first cut.
 
-### 3.5 Registers — `/api/registers`
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/registers` | Active registers |
-
-No register picker is needed at login — the PIN determines the register (§3.1). This endpoint is
-for admin and for seeding. Creating a register must also create its `gen_sale_number_<code>`
-generator, so route it through a service rather than a bare `INSERT`.
-
 ---
 
 ## 4. Suggested project layout
@@ -1035,11 +1038,11 @@ backend/
     schemas/               # Pydantic v2, camelCase aliases
       product.py  sale.py  transaction.py  auth.py  common.py
     routers/
-      auth.py  products.py  open_sales.py  transactions.py  registers.py
+      auth.py  products.py  open_sales.py  transactions.py
     services/
       sale_numbers.py      # generator allocation + retry helper (§2.3)
       checkout.py          # the commit transaction
-    dependencies.py        # current_register / current_cashier (§3.0 — header-based)
+    dependencies.py        # current_cashier (§3.0 — X-Cashier-Id header)
     seed.py                # ports frontend/lib/data/seed-*.ts for dev
   alembic/
   schema.sql               # generators + triggers Alembic will not autogenerate
@@ -1065,8 +1068,18 @@ dependencies = [
 `argon2-cffi` if the auth model is ever tightened.
 
 **CORS.** The frontend calls the API from the browser now that there is no server action
-proxying requests, so `CORSMiddleware` must allow the Next.js origin
-(`http://localhost:3000` in dev). `allow_credentials` is not needed — there are no cookies.
+proxying requests, so `CORSMiddleware` must allow the Next.js origin. In dev that is
+`http://localhost:3000`. In production there are **two laptops** — one running server + client,
+one client-only — so the client laptop's browser calls the server laptop over the LAN, and its
+origin must be allowed too:
+
+```python
+allow_origins = ["http://localhost:3000", "http://192.168.1.10:3000"]  # server laptop's LAN IP
+```
+
+Give the server laptop a static LAN IP (or a hostname reservation), otherwise DHCP will
+eventually move it and both the CORS list and the client's API base URL will break.
+`allow_credentials` is not needed — there are no cookies.
 
 **Client library.** `firebird-driver` binds to the native Firebird client library, which is
 **not** bundled with the wheel. It resolves that library differently per platform, so the two
@@ -1205,28 +1218,66 @@ This is the most common first-run failure on both platforms and belongs in the R
    the code runs on that machine.
 1. Config, database, `Base`, `types.py`, Alembic baseline (plus `schema.sql` for generators and
    the `products_bi_bu` trigger).
-2. `Register` + `Cashier`; `POST /api/auth/login`; swap the `CASHIERS` map in
-   `session-store.ts` for a fetch, keeping `login()`'s boolean contract (it becomes async, so
-   the login page must await it). Seed both registers and both generators.
+2. `Cashier` + `POST /api/auth/login`; swap the `CASHIERS` map in `session-store.ts` for a
+   fetch, keeping `login()`'s boolean contract (it becomes async, so the login page must await
+   it). Store `cashierId` alongside `cashierName` and drop `registerId` (§1.6). Seed both
+   cashiers and the `gen_sale_number` generator. Add the shared fetch wrapper that attaches
+   `X-Cashier-Id` here — later steps depend on it.
+
+   Give that wrapper a single place to turn a network failure into a visible error, since every
+   later step routes through it. With no offline mode (§6), "server unreachable" is a normal
+   operating state for the client laptop and the UI must say so rather than rendering an empty
+   catalog. Building it here costs one `catch` and a toast; retrofitting it across four stores
+   later costs considerably more.
 3. `Product` + all of `/api/products`; swap `products-store.ts` to fetch. Lowest-risk slice —
    the catalog has no cross-entity invariants.
 4. `OpenSale` / `OpenSaleLine` + `/api/open-sales`; move `sales-store.ts` to server-backed
-   carts. Add the shared fetch wrapper that attaches `X-Register-Code` here — everything after
-   this step depends on it.
+   carts.
 5. `Transaction` / `TransactionLine`, the generator-based sale-number allocator (§2.3), and the
    checkout service. This closes the `saleNumber: null` gap from §1.4.
 6. Void, summary, reprint.
-7. Port the seed fixtures so dev data matches what the frontend ships with today.
+7. Port the seed fixtures so dev data matches what the frontend ships with today, minus
+   `registerId` (§1.6).
 8. **Windows deployment dry-run.** Install Firebird 5 (64-bit, matching Python), create the
-   database and both generators, run the healthcheck script from §4, then exercise one full
-   checkout end to end. Do this well before the shop needs it — the failure modes here are
-   environmental, not logical, so they do not appear in any test that passes on the Mac.
+   database and the `gen_sale_number` generator, run the healthcheck script from §4, then
+   exercise one full checkout end to end. Do this well before the shop needs it — the failure
+   modes here are environmental, not logical, so they do not appear in any test that passes on
+   the Mac. Include the **second laptop** in this run: point its browser at the server's LAN IP,
+   confirm CORS allows it, park a cart on one machine and resume it on the other, then pull the
+   network cable and confirm the client fails with a legible message (§6) rather than an empty
+   screen.
 
 ## 6. Production notes (Windows)
 
-The shop runs one Windows machine serving one register terminal, which keeps deployment simple
-but concentrates the risks:
+The shop runs up to two Windows laptops: one hosting Firebird + the API + a browser, one
+browser-only. Only the first holds any state.
 
+- **The server laptop needs a static LAN IP** (or a DHCP reservation). The client laptop's API
+  base URL and the CORS allow-list both hard-code it (§4), so an address change breaks the
+  client with a confusing CORS error rather than an obvious one.
+- **The client laptop is disposable; the server laptop is not.** All data lives in one `.fdb` on
+  the server. If that laptop is the one that gets dropped or stolen, the shop's entire sales
+  history goes with it — which makes the `gbak` schedule below the single most important item in
+  this list, and it should write to somewhere physically separate.
+- **No offline mode — accepted** (decision 2026-09-26). When the server laptop is off or off the
+  network, the client laptop is unusable: no catalog, no carts, no checkout. This is a deliberate
+  simplification, not an oversight, and the whole design leans on it — the server is the single
+  source of truth for the catalog, the open carts and the receipt sequence, with no local queue,
+  no conflict resolution and no sale-number reconciliation to build or reason about.
+
+  Two things follow, and they are cheap:
+
+  - **The client laptop should fail legibly, not silently.** A failed fetch must surface as
+    something like "Tidak dapat menghubungi server kasir" rather than an empty product list or a
+    cart that appears to accept scans and then loses them. An empty catalog looks like a data
+    problem; a connection error tells the cashier to go check the other laptop.
+  - **The server laptop is the one that must stay up.** It should be the primary till — the one
+    normally staffed — so that if either machine is switched off or carried away, it is the
+    client. Pair that with the Windows-service setup below so the API is not tied to someone
+    staying logged in.
+
+  Revisit only if the shop starts wanting to trade while the server laptop is down; that would
+  be a rewrite of the state model, not an added feature.
 - **Run the API as a Windows service** (via NSSM or `sc.exe`) rather than a console window, so
   it survives logout and restarts with the machine. A closed terminal window should not be able
   to take the till down mid-trade.

@@ -7,7 +7,9 @@
       "Bash(curl -s -b /tmp/pos-cookies-netscape.txt http://localhost:3000/ -o /tmp/checkout2.html -w \"HTTP %{http_code}\\\\n\")",
       "Read(//tmp/**)",
       "Bash(npx eslint *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(python3 -)",
+      "Bash(grep -c '^```' BACKEND_SPEC.md)"
     ]
   }
 }
