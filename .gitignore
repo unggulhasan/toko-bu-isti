@@ -12,3 +12,4 @@ __pycache__/
 .archive
 packages/api/src/ai/output/
 .neon
+*.fdb
