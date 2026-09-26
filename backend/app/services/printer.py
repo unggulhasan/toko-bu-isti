@@ -11,6 +11,7 @@ from datetime import timezone
 from zoneinfo import ZoneInfo
 
 import barcode as barcode_lib
+import usb.core
 from barcode.writer import ImageWriter
 from escpos.escpos import Escpos
 from escpos.exceptions import Error as EscposError
@@ -38,20 +39,51 @@ class PrinterError(Exception):
     """Raised when the printer is unreachable or rejects the job."""
 
 
+# USB Printer Class, per the USB spec -- reported on an interface, not the device
+# itself (composite USB printers report bDeviceClass 0 at the device level).
+_USB_PRINTER_INTERFACE_CLASS = 7
+
+
+def _is_usb_printer(device: usb.core.Device) -> bool:
+    return any(
+        interface.bInterfaceClass == _USB_PRINTER_INTERFACE_CLASS
+        for cfg in device
+        for interface in cfg
+    )
+
+
+def _autodetect_usb_printer() -> tuple[int, int]:
+    """Find the (sole) USB Printer Class device. Raises PrinterError if none or more
+    than one is found -- ambiguous cases need PRINTER_USB_VENDOR_ID/PRODUCT_ID set
+    explicitly instead."""
+
+    devices = list(usb.core.find(find_all=True, custom_match=_is_usb_printer))
+    if not devices:
+        raise PrinterError(
+            "no USB printer detected -- check the cable, or set "
+            "PRINTER_USB_VENDOR_ID / PRINTER_USB_PRODUCT_ID"
+        )
+    if len(devices) > 1:
+        found = ", ".join(f"{d.idVendor:04x}:{d.idProduct:04x}" for d in devices)
+        raise PrinterError(
+            f"multiple USB printers detected ({found}) -- set "
+            "PRINTER_USB_VENDOR_ID / PRINTER_USB_PRODUCT_ID to pick one"
+        )
+    return devices[0].idVendor, devices[0].idProduct
+
+
 def get_printer() -> Escpos:
     backend = settings.printer_backend
     try:
         if backend == "network":
             return Network(settings.printer_host, port=settings.printer_port)
         if backend == "usb":
-            if not settings.printer_usb_vendor_id or not settings.printer_usb_product_id:
-                raise PrinterError(
-                    "PRINTER_USB_VENDOR_ID / PRINTER_USB_PRODUCT_ID are not set"
-                )
-            return Usb(
-                int(settings.printer_usb_vendor_id, 16),
-                int(settings.printer_usb_product_id, 16),
-            )
+            if settings.printer_usb_vendor_id and settings.printer_usb_product_id:
+                vendor_id = int(settings.printer_usb_vendor_id, 16)
+                product_id = int(settings.printer_usb_product_id, 16)
+            else:
+                vendor_id, product_id = _autodetect_usb_printer()
+            return Usb(vendor_id, product_id)
         if backend == "dummy":
             return Dummy()
     except (EscposError, OSError, ValueError) as exc:

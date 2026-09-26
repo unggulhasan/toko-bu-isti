@@ -58,6 +58,4 @@ def health() -> dict[str, str]:
 if __name__ == "__main__":
     import uvicorn
 
-    # Host comes from config so nobody types --host 0.0.0.0: bind to loopback in
-    # dev and to the server laptop's static LAN IP in production (spec 3.0).
     uvicorn.run(app, host=settings.api_host, port=settings.api_port)

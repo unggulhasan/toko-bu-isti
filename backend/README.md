@@ -23,7 +23,7 @@ uv run python main.py                   # http://127.0.0.1:8000  (docs at /docs)
 | --- | --- |
 | `DATABASE_URL` | `firebird+firebird://SYSDBA:masterkey@localhost:3050//abs/path/toko.fdb` — note the **doubled slash** before an absolute POSIX path |
 | `CORS_ORIGINS` | Comma-separated. Must list every browser origin, including the client laptop's |
-| `API_HOST` / `API_PORT` | Bind address. **Never `0.0.0.0`** — see Production |
+| `API_HOST` / `API_PORT` | Bind address. `127.0.0.1` in dev; `0.0.0.0` in production — see Production |
 | `FB_CLIENT_LIBRARY` | Windows only, when `fbclient.dll` is kept off `PATH` |
 
 ## The client library — the most common first-run failure
@@ -127,10 +127,11 @@ field. The cashier is the only actor identified.
 
 ## Production notes (Windows)
 
-- **Bind to the LAN IP, not `0.0.0.0`** — the client laptop must reach the server, so
-  loopback is too narrow, but a wildcard bind exposes an unauthenticated API on any
-  interface the laptop acquires (public Wi-Fi, tethering). Add a firewall rule
-  limiting the port to the local subnet.
+- **Bind `API_HOST=0.0.0.0`.** The shop's LAN has no internet access, so a wildcard
+  bind is accepted despite the API being unauthenticated (PIN lookup only, no
+  tokens — see Auth). If the server laptop ever gains another network path (Wi-Fi,
+  tethering), add a firewall rule limiting the port to the shop's subnet, or go back
+  to binding the static LAN IP directly.
 - **Give the server laptop a static LAN IP.** The client's API base URL and
   `CORS_ORIGINS` both hard-code it; a DHCP change breaks the client with a confusing
   CORS error.
