@@ -11,6 +11,7 @@ import { formatDateID, formatClock, formatNumber } from "@/lib/format"
 import { saleUnits } from "@/lib/pos-calculations"
 import { ApiError } from "@/lib/api/client"
 import {
+  usePrintTransaction,
   useTransaction,
   useVoidTransaction,
 } from "@/lib/hooks/use-transactions"
@@ -23,8 +24,10 @@ export function ReceiptPanel({
 }) {
   const { data: transaction, isLoading } = useTransaction(transactionId)
   const voidTransaction = useVoidTransaction()
+  const printTransaction = usePrintTransaction()
   const [voidOpen, setVoidOpen] = useState(false)
   const [voidError, setVoidError] = useState<string | null>(null)
+  const [printError, setPrintError] = useState<string | null>(null)
 
   if (!transactionId) {
     return (
@@ -106,6 +109,9 @@ export function ReceiptPanel({
           </span>
         </div>
       </div>
+      {printError && (
+        <p className="mt-3 text-sm text-destructive">{printError}</p>
+      )}
       {voidError && (
         <p className="mt-3 text-sm text-destructive">{voidError}</p>
       )}
@@ -113,13 +119,26 @@ export function ReceiptPanel({
         <Button
           type="button"
           variant="outline"
+          disabled={printTransaction.isPending}
           className="flex-1 normal-case"
-          onClick={() =>
-            toast.add({
-              title: "Struk dicetak ulang",
-              description: `Transaksi #${transaction.saleNumber}`,
+          onClick={() => {
+            setPrintError(null)
+            printTransaction.mutate(transaction.id, {
+              onSuccess: () => {
+                toast.add({
+                  title: "Struk dicetak ulang",
+                  description: `Transaksi #${transaction.saleNumber}`,
+                })
+              },
+              onError: (err) => {
+                setPrintError(
+                  err instanceof ApiError
+                    ? err.message
+                    : "Tidak dapat menghubungi printer."
+                )
+              },
             })
-          }
+          }}
         >
           Cetak ulang
         </Button>

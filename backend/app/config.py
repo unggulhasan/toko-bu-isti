@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # Windows only, when fbclient.dll is kept off PATH (spec 4). Left unset on macOS.
     fb_client_library: str | None = None
 
+    # "network" (escpresso / a LAN-connected printer), "usb" (the real TM-U220D,
+    # which is USB-attached), or "dummy" (buffers bytes, no I/O -- for testing).
+    printer_backend: str = "network"
+    printer_host: str = "127.0.0.1"
+    printer_port: int = 9100
+    # Hex strings (e.g. "04b8"), required when printer_backend == "usb". Found via
+    # Device Manager on Windows or `lsusb`/`system_profiler SPUSBDataType` on
+    # Linux/macOS.
+    printer_usb_vendor_id: str | None = None
+    printer_usb_product_id: str | None = None
+
     @field_validator("database_url")
     @classmethod
     def _require_url(cls, v: str) -> str:

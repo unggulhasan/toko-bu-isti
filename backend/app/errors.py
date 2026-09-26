@@ -67,3 +67,7 @@ def transaction_not_found() -> HTTPException:
 
 def already_voided() -> HTTPException:
     return api_error(409, "ALREADY_VOIDED", "Transaksi sudah dibatalkan")
+
+
+def printer_unavailable() -> HTTPException:
+    return api_error(503, "PRINTER_UNAVAILABLE", "Tidak dapat menghubungi printer")

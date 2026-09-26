@@ -17,7 +17,7 @@ import {
 import { formatNumber, formatRupiah, parseRupiahInput } from "@/lib/format"
 import { ApiError } from "@/lib/api/client"
 import { useActiveSale } from "@/lib/hooks/use-active-sale"
-import { useCheckout } from "@/lib/hooks/use-transactions"
+import { usePrintTransaction, useCheckout } from "@/lib/hooks/use-transactions"
 import { useSessionStore } from "@/lib/store/session-store"
 import { toast } from "@/components/ui/toast"
 
@@ -31,6 +31,7 @@ export function CashPaymentDialog({
   const { sale: activeSale, activeIndex } = useActiveSale()
   const activeSaleNumber = activeIndex + 1
   const checkout = useCheckout()
+  const printTransaction = usePrintTransaction()
   const logout = useSessionStore((s) => s.logout)
   const [tenderedRaw, setTenderedRaw] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -58,9 +59,24 @@ export function CashPaymentDialog({
       // strip / moves the active cart on -- no client-side cart surgery here.
       setTenderedRaw("")
       onOpenChange(false)
-      toast.add({
-        title: "Struk dicetak",
-        description: `Transaksi #${txn.saleNumber} selesai.`,
+      // The sale is already committed at this point -- a print failure must not
+      // undo or block the checkout, so it only swaps which toast is shown.
+      printTransaction.mutate(txn.id, {
+        onSuccess: () => {
+          toast.add({
+            title: "Struk dicetak",
+            description: `Transaksi #${txn.saleNumber} selesai.`,
+          })
+        },
+        onError: (err) => {
+          toast.add({
+            title: "Transaksi selesai, struk gagal dicetak",
+            description:
+              err instanceof ApiError
+                ? err.message
+                : `Transaksi #${txn.saleNumber} -- cetak ulang dari halaman transaksi.`,
+          })
+        },
       })
     } catch (err) {
       // Deliberately do NOT close the dialog or clear the cart on failure --

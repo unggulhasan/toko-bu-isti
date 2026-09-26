@@ -53,6 +53,12 @@ export function voidTransaction(id: string): Promise<Transaction> {
   })
 }
 
+export function printTransaction(id: string): Promise<{ ok: boolean }> {
+  return request(`/api/transactions/${id}/print`, {
+    method: "POST",
+  })
+}
+
 export function getSummary(params: {
   from?: string
   to?: string

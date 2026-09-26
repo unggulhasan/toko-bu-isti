@@ -62,3 +62,11 @@ export function useVoidTransaction() {
     },
   })
 }
+
+// Also used for reprint: printing is stateless, so the same call both prints a
+// fresh receipt and reprints an existing one.
+export function usePrintTransaction() {
+  return useMutation({
+    mutationFn: (id: string) => api.printTransaction(id),
+  })
+}

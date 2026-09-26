@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..dependencies import CurrentCashier, DbSession
-from ..errors import already_voided, transaction_not_found
+from ..errors import already_voided, printer_unavailable, transaction_not_found
 from ..models import Transaction, TransactionLine, TransactionStatus
 from ..schemas.common import Page, paginate
 from ..schemas.transaction import (
@@ -20,6 +20,7 @@ from ..schemas.transaction import (
     TransactionOut,
 )
 from ..services.checkout import commit_sale
+from ..services.printer import PrinterError, get_printer, print_receipt
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -189,6 +190,22 @@ def void_transaction(
     txn.voided_by = cashier.name
     db.commit()
     return TransactionOut.model_validate(_load(db, transaction_id))
+
+
+@router.post("/{transaction_id}/print", status_code=status.HTTP_200_OK)
+def print_transaction(transaction_id: str, db: DbSession) -> dict[str, bool]:
+    """Print (or reprint) a receipt. Stateless -- no audit trail is kept, so this
+    is also the reprint endpoint: a receipt is immutable once written, so printing
+    it again is just re-rendering the same data (spec: TransactionLine docstring).
+    """
+    txn = _load(db, transaction_id)
+    try:
+        printer = get_printer()
+        print_receipt(printer, txn)
+        printer.close()
+    except PrinterError:
+        raise printer_unavailable()
+    return {"ok": True}
 
 
 def _load(db: Session, transaction_id: str) -> Transaction:
