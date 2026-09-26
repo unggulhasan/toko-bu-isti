@@ -135,7 +135,7 @@ export function ProductFormDialog({
               ref={barcodeRef}
               value={barcode}
               onChange={(e) => {
-                setBarcode(e.target.value)
+                setBarcode(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))
                 setBarcodeError(null)
               }}
               onKeyDown={(e) => focusNext(e, nameRef.current)}

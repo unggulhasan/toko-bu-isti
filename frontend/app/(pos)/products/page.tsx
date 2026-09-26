@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   Pagination,
@@ -12,12 +12,15 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { ProductSearchBar } from "@/components/pos/product-search-bar"
-import { ProductsTable } from "@/components/pos/products-table"
+import {
+  ProductsTable,
+  type ProductsTableHandle,
+} from "@/components/pos/products-table"
 import { ProductFormDialog } from "@/components/pos/product-form-dialog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { Product } from "@/lib/types"
 
-const PAGE_SIZE = 8
+const PAGE_SIZE = 10
 // The search bar is a controlled input rendering on every keystroke; the
 // debounce lives here so typing doesn't refetch on each character.
 const DEBOUNCE_MS = 250
@@ -61,8 +64,12 @@ export default function ProductsPage() {
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const tableRef = useRef<ProductsTableHandle>(null)
 
   useEffect(() => {
+    // A leading "/" starts a command (e.g. /baru) in ProductSearchBar, not a
+    // search -- don't debounce it into a query and refetch products.
+    if (query.startsWith("/")) return
     const timer = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [query])
@@ -89,17 +96,12 @@ export default function ProductsPage() {
 
   return (
     <div className="px-6.5 py-6">
-      <div className="mb-4.5 flex items-end justify-between">
-        <div>
-          <div className="text-[23px] font-semibold tracking-tight text-foreground">
-            Produk
-          </div>
-          <div className="mt-1 text-[12.5px] text-muted-foreground">
-            {/* total is now the filtered count once q is set -- relabel so
-                it doesn't read as the whole catalog size while searching. */}
-            {debouncedQuery.trim() ? `${total} hasil` : `${total} produk`}
-          </div>
-        </div>
+      <div className="mb-2 text-[12.5px] text-muted-foreground">
+        {/* total is now the filtered count once q is set -- relabel so
+            it doesn't read as the whole catalog size while searching. */}
+        {debouncedQuery.trim() ? `${total} hasil` : `${total} produk`}
+      </div>
+      <div className="mb-4.5">
         <ProductSearchBar
           query={query}
           onQueryChange={(value) => {
@@ -107,9 +109,15 @@ export default function ProductsPage() {
             setPage(0)
           }}
           onNewProduct={openNewProduct}
+          onNavigate={(delta) => tableRef.current?.moveSelection(delta)}
+          onActivate={() => tableRef.current?.activateSelection()}
         />
       </div>
-      <ProductsTable products={pageItems} onEdit={openEditProduct} />
+      <ProductsTable
+        ref={tableRef}
+        products={pageItems}
+        onEdit={openEditProduct}
+      />
       <div className="mt-3.5 flex items-center justify-between text-[12.5px] text-muted-foreground">
         <span>
           {isLoading
