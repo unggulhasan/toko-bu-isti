@@ -56,10 +56,14 @@ export default function LoginPage() {
   return (
     <div className="flex h-svh bg-shell">
       <div className="relative min-w-0 flex-[1.35]">
-        <div className="absolute inset-0 bg-shell" />
+        <div
+          className="absolute inset-0 bg-shell bg-cover bg-center"
+          style={{ backgroundImage: "url(/login-bg.jpg)" }}
+        />
+        <div className="absolute inset-0 bg-shell/35" />
         <div className="absolute inset-x-0 top-0 flex items-center gap-3 bg-linear-to-b from-shell/55 to-transparent px-7.5 py-6.5">
-          <div className="size-5.5 rounded-sm bg-primary" />
-          <span className="text-sm font-semibold text-shell-foreground">
+          <div className="size-7 rounded-sm bg-primary" />
+          <span className="text-xl font-semibold text-shell-foreground">
             Toko Bu Isti
           </span>
         </div>
@@ -70,10 +74,6 @@ export default function LoginPage() {
         </div>
       </div>
       <div className="flex w-115 flex-none flex-col bg-background px-12 py-8.5">
-        <div className="flex justify-between font-mono text-[11.5px] text-muted-foreground">
-          <span>Kasir 01</span>
-          <span>Buka 08.00–20.00</span>
-        </div>
         <div className="mt-auto">
           <div className="font-mono text-6xl font-medium tracking-tight text-foreground">
             {formatClock(now)}
@@ -85,11 +85,11 @@ export default function LoginPage() {
             {getGreeting(now)}
           </div>
           <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
-            Masukkan kata sandi kasir untuk membuka mesin kasir.
+            Masukkan PIN membuka mesin kasir.
           </p>
           <form action={handleSubmit} className="contents">
             <Label htmlFor="password" className="mt-7.5 mb-2">
-              Kata sandi
+              PIN
             </Label>
             <input type="hidden" name="password" value={password} />
             <InputOTP

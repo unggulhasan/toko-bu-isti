@@ -171,8 +171,6 @@ export function CashPaymentDialog({
             )}
             <div className="mt-6 font-mono text-sm leading-relaxed text-muted-foreground">
               Enter untuk konfirmasi · Esc untuk batal
-              <br />
-              Laci kas terbuka setelah konfirmasi
             </div>
           </div>
           <div className="flex w-full flex-none flex-col justify-between bg-primary p-6.5 text-primary-foreground sm:w-85">
@@ -195,7 +193,7 @@ export function CashPaymentDialog({
               onClick={handleConfirm}
               className="mt-6 h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90"
             >
-              {checkout.isPending ? "Memproses…" : "Konfirmasi & cetak struk"}
+              {checkout.isPending ? "Memproses…" : "Konfirmasi & Cetak Struk"}
             </Button>
           </div>
         </div>
