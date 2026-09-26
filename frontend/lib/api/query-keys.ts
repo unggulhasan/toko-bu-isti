@@ -15,9 +15,8 @@ export const queryKeys = {
   },
   transactions: {
     all: ["transactions"] as const,
-    list: (params: { page: number; statusFilter: string }) =>
-      ["transactions", "list", params] as const,
     detail: (id: string) => ["transactions", "detail", id] as const,
-    summary: () => ["transactions", "summary"] as const,
+    byNumber: (saleNumber: number) =>
+      ["transactions", "by-number", saleNumber] as const,
   },
 }

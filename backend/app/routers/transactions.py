@@ -156,6 +156,21 @@ def summary(
     )
 
 
+# Declared before /{transaction_id}, or "by-number" would be matched as an id.
+@router.get("/by-number/{sale_number}", response_model=TransactionOut)
+def get_transaction_by_number(sale_number: int, db: DbSession) -> TransactionOut:
+    """Lookup for the transactions-page scan/type input, keyed by the
+    human-facing sale number rather than the internal id."""
+    txn = db.scalar(
+        select(Transaction)
+        .options(selectinload(Transaction.lines))
+        .where(Transaction.sale_number == sale_number)
+    )
+    if txn is None:
+        raise transaction_not_found()
+    return TransactionOut.model_validate(txn)
+
+
 @router.get("/{transaction_id}", response_model=TransactionOut)
 def get_transaction(transaction_id: str, db: DbSession) -> TransactionOut:
     """One transaction with its lines, for the receipt panel."""

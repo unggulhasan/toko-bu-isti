@@ -6,40 +6,46 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import { VoidSaleDialog } from "@/components/pos/void-sale-dialog"
 import { formatDateID, formatClock, formatNumber } from "@/lib/format"
 import { saleUnits } from "@/lib/pos-calculations"
 import { ApiError } from "@/lib/api/client"
-import {
-  usePrintTransaction,
-  useTransaction,
-  useVoidTransaction,
-} from "@/lib/hooks/use-transactions"
+import { usePrintTransaction } from "@/lib/hooks/use-transactions"
 import { toast } from "@/components/ui/toast"
+import type { Transaction } from "@/lib/types"
 
 export function ReceiptPanel({
-  transactionId,
+  transaction,
+  isLoading,
+  notFound,
+  onClear,
 }: {
-  transactionId: string | null
+  transaction: Transaction | null
+  isLoading: boolean
+  notFound: boolean
+  onClear: () => void
 }) {
-  const { data: transaction, isLoading } = useTransaction(transactionId)
-  const voidTransaction = useVoidTransaction()
   const printTransaction = usePrintTransaction()
-  const [voidOpen, setVoidOpen] = useState(false)
-  const [voidError, setVoidError] = useState<string | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
 
-  if (!transactionId) {
+  if (notFound) {
     return (
-      <div className="flex w-80 flex-none items-center justify-center rounded-none border border-border bg-card p-5.5 text-sm text-muted-foreground">
-        Pilih transaksi untuk melihat struk.
+      <div className="flex w-full max-w-md items-center justify-center rounded-none border border-border bg-card p-5.5 text-sm text-muted-foreground">
+        Transaksi tidak ditemukan.
+      </div>
+    )
+  }
+
+  if (!transaction && !isLoading) {
+    return (
+      <div className="flex w-full max-w-md items-center justify-center rounded-none border border-border bg-card p-5.5 text-sm text-muted-foreground">
+        Pindai atau ketik nomor transaksi untuk melihat struk.
       </div>
     )
   }
 
   if (isLoading || !transaction) {
     return (
-      <div className="w-80 flex-none rounded-none border border-border bg-card p-5.5">
+      <div className="w-full max-w-md rounded-none border border-border bg-card p-5.5">
         <Skeleton className="h-5 w-32" />
         <Skeleton className="mt-2 h-3 w-40" />
         <Separator className="my-4" />
@@ -54,7 +60,7 @@ export function ReceiptPanel({
   const createdAt = new Date(transaction.createdAt)
 
   return (
-    <div className="w-80 flex-none rounded-none border border-border bg-card p-5.5">
+    <div className="w-full max-w-md rounded-none border border-border bg-card p-5.5">
       <div className="flex items-baseline justify-between">
         <span className="font-mono text-[15px] font-bold text-foreground">
           Transaksi #{transaction.saleNumber}
@@ -112,9 +118,6 @@ export function ReceiptPanel({
       {printError && (
         <p className="mt-3 text-sm text-destructive">{printError}</p>
       )}
-      {voidError && (
-        <p className="mt-3 text-sm text-destructive">{voidError}</p>
-      )}
       <div className="mt-4.5 flex gap-2">
         <Button
           type="button"
@@ -144,35 +147,13 @@ export function ReceiptPanel({
         </Button>
         <Button
           type="button"
-          variant="destructive"
-          disabled={isVoided || voidTransaction.isPending}
+          variant="outline"
           className="flex-1 normal-case"
-          onClick={() => setVoidOpen(true)}
+          onClick={onClear}
         >
-          Batalkan transaksi
+          Bersihkan
         </Button>
       </div>
-      <VoidSaleDialog
-        open={voidOpen}
-        onOpenChange={setVoidOpen}
-        saleNumber={transaction.saleNumber}
-        onConfirm={() => {
-          setVoidError(null)
-          voidTransaction.mutate(transaction.id, {
-            onError: (err) => {
-              // ALREADY_VOIDED happens when the other terminal voided it
-              // first -- the mutation's cache write already refreshed the
-              // status badge, so just surface the message.
-              setVoidError(
-                err instanceof ApiError
-                  ? err.message
-                  : "Gagal membatalkan transaksi."
-              )
-            },
-          })
-          setVoidOpen(false)
-        }}
-      />
     </div>
   )
 }
