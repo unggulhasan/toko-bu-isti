@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from datetime import timezone
 
+import barcode as barcode_lib
+from barcode.writer import ImageWriter
 from escpos.escpos import Escpos
 from escpos.exceptions import Error as EscposError
 from escpos.printer import Dummy, Network, Usb
@@ -17,6 +19,11 @@ from ..config import settings
 from ..models import Transaction, TransactionStatus
 
 STORE_NAME = "TOKO BU ISTI"
+
+# 80mm paper, Font A (12x24 dots, 1.67mm/char) -- the TM-U220D's roll width.
+# 42 columns is the 58mm-paper figure; using it here is what left the right third
+# of the receipt blank.
+LINE_WIDTH = 48
 
 
 class PrinterError(Exception):
@@ -45,8 +52,7 @@ def get_printer() -> Escpos:
 
 
 def _line(printer: Escpos, left: str, right: str) -> None:
-    width = 42  # 80mm paper, Font A -- matches escpresso's default and the TM-U220D
-    printer.text(f"{left}{right.rjust(max(1, width - len(left)))}\n")
+    printer.text(f"{left}{right.rjust(max(1, LINE_WIDTH - len(left)))}\n")
 
 
 def print_receipt(printer: Escpos, txn: Transaction) -> None:
@@ -66,25 +72,32 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
         created_at = txn.created_at.replace(tzinfo=timezone.utc)
         printer.text(f"#{txn.sale_number}\n")
         printer.text(f"{created_at.strftime('%d-%m-%Y %H:%M')}  {txn.cashier_name}\n")
-        printer.text("-" * 42 + "\n")
+        printer.text("-" * LINE_WIDTH + "\n")
 
         printer.set(align="left")
         for item in txn.lines:
             printer.text(f"{item.name}\n")
             _line(printer, f"  {item.qty} x {item.price:,.0f}".replace(",", "."), f"{item.line_total:,.0f}".replace(",", "."))
 
-        printer.text("-" * 42 + "\n")
+        printer.text("-" * LINE_WIDTH + "\n")
         _line(printer, "Total", f"{txn.total:,.0f}".replace(",", "."))
         _line(printer, "Tunai", f"{txn.tendered:,.0f}".replace(",", "."))
         _line(printer, "Kembali", f"{txn.change:,.0f}".replace(",", "."))
         printer.text("\n")
 
         printer.set(align="center")
-        # CODE128 in hardware mode requires a code-set prefix ({A/{B/{C) ahead of
-        # the payload -- {B selects Code Set B (printable ASCII), which covers a
-        # plain digit string like the sale number.
-        printer.barcode(f"{{B{txn.sale_number}", "CODE128", width=2, height=80, pos="BELOW")
+        # Rendered as an image via python-barcode rather than printer.barcode():
+        # neither the hardware GS k command nor escpos's "graphics" (GS ( L)
+        # software renderer is understood by escpresso -- the former echoed the
+        # raw command back as literal text, the latter produced nothing. Only the
+        # bitImageRaster (GS v 0) command is actually rendered, and printer.barcode()
+        # has no way to reach that renderer while also suppressing the
+        # human-readable digits under the bars, so the image is built directly.
+        code128 = barcode_lib.get_barcode_class("code128")
+        barcode_image = code128(str(txn.sale_number), writer=ImageWriter()).render(
+            writer_options={"write_text": False, "module_height": 5, "quiet_zone": 0}
+        )
+        printer.image(barcode_image, impl="bitImageRaster", center=True)
         printer.text("\n")
-        printer.cut()
     except (EscposError, OSError) as exc:
         raise PrinterError(str(exc)) from exc
