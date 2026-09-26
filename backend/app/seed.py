@@ -37,7 +37,7 @@ CASHIERS = [("1234", "Kasir 1"), ("7890", "Kasir 2")]
 # The fixtures' updatedAt is a bare "2026-09-12" date; stored as midnight UTC so it
 # serializes back as "2026-09-12T00:00:00Z".
 PRODUCT_UPDATED_AT = datetime(2026, 9, 12, 0, 0, 0)
-PRODUCT_UPDATED_BY = "D. Lestari"
+PRODUCT_UPDATED_BY = "Shita Mira"
 
 PRODUCTS: list[tuple[str, str, int]] = [
     ("8041520094", "Mug Keramik Sand", 95000),
@@ -63,7 +63,7 @@ PRODUCTS: list[tuple[str, str, int]] = [
 # --- Transactions -------------------------------------------------------------
 # All 7 from seed-transactions.ts (saleNumbers 1036-1042, one voided).
 #
-# The cashier NAMES here ("D. Lestari", "A. Pratama") are deliberately not the two
+# The cashier NAMES here ("Shita Mira", "A. Pratama") are deliberately not the two
 # PIN cashiers above. That is not an inconsistency to fix: transactions.cashier_name
 # is denormalized and cashier_id is nullable with ON DELETE SET NULL precisely so a
 # historical receipt can name someone no longer on staff. These rows are seeded with
@@ -79,9 +79,9 @@ PRODUCTS: list[tuple[str, str, int]] = [
 # stale total would make the summary's gross and cashInDrawer disagree. Its tendered
 # is raised to cover the corrected total.
 TRANSACTIONS: list[tuple[int, str, str, int, int, int, list[tuple[str, int]]]] = [
-    (1042, "D. Lestari", "completed", 14, 8, 630000,
+    (1042, "Shita Mira", "completed", 14, 8, 630000,
      [("8041520094", 1), ("8041520201", 2), ("8041520233", 1)]),
-    (1041, "D. Lestari", "completed", 13, 52, 115000, [("8041520201", 1)]),
+    (1041, "Shita Mira", "completed", 13, 52, 115000, [("8041520201", 1)]),
     (1040, "A. Pratama", "voided", 13, 30, 345000,
      [("8041520344", 2), ("8041520411", 1)]),
     (1039, "A. Pratama", "completed", 12, 57, 1050000,
@@ -89,9 +89,9 @@ TRANSACTIONS: list[tuple[int, str, str, int, int, int, list[tuple[str, int]]]] =
     (1038, "A. Pratama", "completed", 12, 14, 150000, [("8041520117", 2)]),
     # tendered raised from the fixture's 600000: see the t-1037 note above -- the
     # corrected, line-derived total exceeds it.
-    (1037, "D. Lestari", "completed", 11, 46, 700000,
+    (1037, "Shita Mira", "completed", 11, 46, 700000,
      [("8041520233", 1), ("8041520344", 1), ("8041520117", 2), ("8041520411", 1)]),
-    (1036, "D. Lestari", "completed", 11, 9, 75000, [("8041520411", 1)]),
+    (1036, "Shita Mira", "completed", 11, 9, 75000, [("8041520411", 1)]),
 ]
 
 # --- Open sales ---------------------------------------------------------------
