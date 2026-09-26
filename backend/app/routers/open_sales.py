@@ -174,23 +174,34 @@ def set_line_qty(
 ) -> OpenSaleOut:
     """Set a line's qty. qty <= 0 DELETEs the line rather than clamping to 0, which
     matches setLineQty and keeps this consistent with ck_osl_qty_positive."""
-    sale = _load_sale(db, sale_id)
-    line = _find_line(sale, line_id)
 
-    if body.qty <= 0:
-        db.delete(line)
-    else:
-        line.qty = body.qty
-    db.commit()
+    def _set() -> None:
+        # Re-read inside the closure: with_retry re-runs this from scratch after a
+        # rollback, and the line fetched before a lost contention race is stale.
+        sale = _load_sale(db, sale_id)
+        line = _find_line(sale, line_id)
+
+        if body.qty <= 0:
+            db.delete(line)
+        else:
+            line.qty = body.qty
+        db.commit()
+
+    with_retry(_set, db)
+
     db.expire_all()
     return _out(_load_sale(db, sale_id))
 
 
 @router.delete("/{sale_id}/lines/{line_id}", response_model=OpenSaleOut)
 def remove_line(sale_id: str, line_id: str, db: DbSession) -> OpenSaleOut:
-    sale = _load_sale(db, sale_id)
-    db.delete(_find_line(sale, line_id))
-    db.commit()
+    def _remove() -> None:
+        sale = _load_sale(db, sale_id)
+        db.delete(_find_line(sale, line_id))
+        db.commit()
+
+    with_retry(_remove, db)
+
     db.expire_all()
     return _out(_load_sale(db, sale_id))
 

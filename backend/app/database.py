@@ -1,9 +1,11 @@
 """Engine, session factory and the platform shims the Firebird client needs.
 
-Import order in this module is load-bearing. The macOS client-library fixes must
-run before anything imports firebird-driver, so they sit above the sqlalchemy
-imports and those imports carry `# noqa: E402`. pyproject.toml also tells ruff to
-leave this file's import order alone -- see [tool.ruff.lint.per-file-ignores].
+Import order in this module is load-bearing. The macOS and Windows client-library
+setup functions must run, and the terminate() shim must be applied, before
+anything imports sqlalchemy or creates the engine -- so they sit above those
+imports despite being defined after `from .config import settings`.
+pyproject.toml tells ruff to leave this file's import order alone (E402); see
+[tool.ruff.lint.per-file-ignores].
 """
 
 from __future__ import annotations
@@ -15,47 +17,83 @@ from pathlib import Path
 
 from .config import settings
 
-# --- macOS (development only) -------------------------------------------------
-# The official Firebird.framework ships its dylibs with no LC_RPATH load command,
-# so their `@rpath/lib/...` references cannot be resolved and loading fails with
-# "Library not loaded: @rpath/lib/libtommath.dylib -- no LC_RPATH's found".
-# Two independent symptoms come out of that one defect:
-#
-#   1. libfbclient.dylib cannot find libtommath.dylib. Preloading it into the
-#      global namespace satisfies the reference. Must happen before the driver
-#      loads the client library.
-#   2. The engine's own plugins (libChaCha.dylib for wire encryption, Engine13
-#      for a local attach) hit the same thing when the *engine* dlopens them.
-#      Preloading does not help there -- the fix is to not take that code path.
-#      With `WireCrypt = Enabled` the client accepts the server's encryption
-#      instead of negotiating a client-side ChaCha plugin, and the attach
-#      succeeds. `Disabled` fails outright ("Incompatible wire encryption levels
-#      requested on client and server") because the server requires encryption.
-#
-# Windows resolves fbclient.dll through PATH and needs none of this, hence the
-# platform guard -- the two platforms' failure modes are unrelated (spec 4).
-if sys.platform == "darwin":
-    _FB_LIB = "/Library/Frameworks/Firebird.framework/Versions/A/Resources/lib"
-    ctypes.CDLL(f"{_FB_LIB}/libtommath.dylib", mode=ctypes.RTLD_GLOBAL)
+
+def _configure_macos_client_library() -> None:
+    """Work around the official Firebird.framework's missing LC_RPATH (dev only).
+
+    The framework ships its dylibs with no LC_RPATH load command, so their
+    `@rpath/lib/...` references cannot be resolved and loading fails with
+    "Library not loaded: @rpath/lib/libtommath.dylib -- no LC_RPATH's found".
+    Two independent symptoms come out of that one defect:
+
+    1. libfbclient.dylib cannot find libtommath.dylib. Preloading it into the
+       global namespace satisfies the reference. Must happen before the driver
+       loads the client library.
+    2. The engine's own plugins (libChaCha.dylib for wire encryption, Engine13
+       for a local attach) hit the same thing when the *engine* dlopens them.
+       Preloading does not help there -- the fix is to not take that code path.
+       With `WireCrypt = Enabled` the client accepts the server's encryption
+       instead of negotiating a client-side ChaCha plugin, and the attach
+       succeeds. `Disabled` fails outright ("Incompatible wire encryption levels
+       requested on client and server") because the server requires encryption.
+
+    Windows resolves fbclient.dll through PATH and needs none of this, hence the
+    platform guard -- the two platforms' failure modes are unrelated (spec 4).
+    """
+    if sys.platform != "darwin":
+        return
+
+    fb_lib = "/Library/Frameworks/Firebird.framework/Versions/A/Resources/lib"
+    ctypes.CDLL(f"{fb_lib}/libtommath.dylib", mode=ctypes.RTLD_GLOBAL)
 
     # The driver reads $FIREBIRD at attach time, so setting it here -- rather than
     # requiring every launcher to export it -- is enough. Unlike DYLD_LIBRARY_PATH,
     # which the dynamic loader reads at process start and is too late to set from
     # Python, and which macOS SIP strips through some launchers anyway.
-    _FBCONF = Path(__file__).resolve().parent.parent / "fbconf"
-    if (_FBCONF / "firebird.conf").is_file():
-        os.environ.setdefault("FIREBIRD", str(_FBCONF))
+    fbconf = Path(__file__).resolve().parent.parent / "fbconf"
+    if (fbconf / "firebird.conf").is_file():
+        os.environ.setdefault("FIREBIRD", str(fbconf))
 
-# --- Windows (production) -----------------------------------------------------
-# The driver's supported override for a client library kept outside PATH. Note it
-# is NOT the FIREBIRD_LIBRARY_PATH env var, which this driver does not read.
-if settings.fb_client_library:
-    from firebird.driver import driver_config  # noqa: E402
+
+_configure_macos_client_library()
+
+
+def _configure_windows_client_library() -> None:
+    """Point firebird-driver at a client library kept outside PATH (production).
+
+    This is the driver's supported override -- NOT the FIREBIRD_LIBRARY_PATH env
+    var, which this driver does not read.
+    """
+    if not settings.fb_client_library:
+        return
+
+    from firebird.driver import driver_config
 
     driver_config.fb_client_library.value = settings.fb_client_library
 
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
+
+_configure_windows_client_library()
+
+from firebird.driver.core import Connection
+
+
+def _patch_connection_terminate() -> None:
+    """Shim sqlalchemy-firebird's do_terminate() onto this firebird-driver version.
+
+    do_terminate() calls dbapi_connection.terminate(), but the installed
+    firebird-driver's Connection only ever had close(). That mismatch surfaces as
+    "AttributeError: 'Connection' object has no attribute 'terminate'" when the
+    pool tears down a connection (pool_recycle, disposal, GC) -- harmless to
+    requests already served, but it spams the log on every teardown.
+    """
+    if not hasattr(Connection, "terminate"):
+        Connection.terminate = Connection.close
+
+
+_patch_connection_terminate()
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 engine = create_engine(
     settings.database_url,
