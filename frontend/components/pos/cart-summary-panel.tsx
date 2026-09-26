@@ -3,20 +3,19 @@
 import { Button } from "@/components/ui/button"
 import { Kbd, KbdGroup } from "@/components/ui/kbd"
 import { formatRupiah } from "@/lib/format"
-import { saleTotal, saleUnits } from "@/lib/pos-calculations"
-import { useSalesStore } from "@/lib/store/sales-store"
+import { useActiveSale } from "@/lib/hooks/use-active-sale"
 
 export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
-  const activeSale = useSalesStore((s) => s.activeSale())
-  const lines = activeSale?.lines ?? []
-  const units = saleUnits(lines)
-  const total = saleTotal(lines)
+  const { sale: activeSale } = useActiveSale()
+  const lineCount = activeSale?.lineCount ?? 0
+  const units = activeSale?.units ?? 0
+  const total = activeSale?.total ?? 0
 
   return (
     <div className="flex w-88 flex-none flex-col bg-card p-6">
       <div className="flex justify-between py-1.75 text-[13.5px] text-muted-foreground">
         <span>Jenis Barang</span>
-        <span className="font-mono text-foreground">{lines.length}</span>
+        <span className="font-mono text-foreground">{lineCount}</span>
       </div>
       <div className="flex justify-between border-b border-border py-1.75 text-[13.5px] text-muted-foreground">
         <span>Jumlah Barang</span>
@@ -33,7 +32,7 @@ export function CartSummaryPanel({ onPay }: { onPay: () => void }) {
       <Button
         type="button"
         onClick={onPay}
-        disabled={lines.length === 0}
+        disabled={lineCount === 0}
         className="mt-auto h-auto py-4.75 text-lg normal-case"
       >
         Bayar · F9

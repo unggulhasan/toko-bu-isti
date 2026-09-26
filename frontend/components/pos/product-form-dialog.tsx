@@ -12,10 +12,18 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { formatDateID, parseRupiahInput } from "@/lib/format"
-import { useProductsStore } from "@/lib/store/products-store"
-import { useSessionStore } from "@/lib/store/session-store"
+import { ApiError } from "@/lib/api/client"
+import {
+  useCreateProduct,
+  useDeleteProduct,
+  useUpdateProduct,
+} from "@/lib/hooks/use-products"
 import type { Product } from "@/lib/types"
 
 export function ProductFormDialog({
@@ -27,38 +35,60 @@ export function ProductFormDialog({
   onOpenChange: (open: boolean) => void
   product: Product | null
 }) {
-  const { addProduct, updateProduct, deleteProduct } = useProductsStore()
-  const cashierName = useSessionStore((s) => s.cashierName)
+  const createProduct = useCreateProduct()
+  const updateProduct = useUpdateProduct()
+  const deleteProduct = useDeleteProduct()
   const [barcode, setBarcode] = useState("")
   const [name, setName] = useState("")
   const [priceRaw, setPriceRaw] = useState("")
+  const [barcodeError, setBarcodeError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       setBarcode(product?.barcode ?? "")
       setName(product?.name ?? "")
       setPriceRaw(product ? String(product.price) : "")
+      setBarcodeError(null)
     }
   }, [open, product])
 
   const isEditing = product != null
+  const isSaving = createProduct.isPending || updateProduct.isPending
 
-  function handleSave() {
+  async function handleSave() {
     const price = parseRupiahInput(priceRaw)
     if (!barcode.trim() || !name.trim() || price <= 0) return
-    if (isEditing) {
-      updateProduct(product.id, { barcode: barcode.trim(), name: name.trim(), price }, cashierName)
-    } else {
-      addProduct({ barcode: barcode.trim(), name: name.trim(), price }, cashierName)
+    setBarcodeError(null)
+    try {
+      if (isEditing) {
+        await updateProduct.mutateAsync({
+          id: product.id,
+          input: { barcode: barcode.trim(), name: name.trim(), price },
+        })
+      } else {
+        await createProduct.mutateAsync({
+          barcode: barcode.trim(),
+          name: name.trim(),
+          price,
+        })
+      }
+      onOpenChange(false)
+    } catch (err) {
+      // BARCODE_TAKEN's message is already Indonesian ("Barkode ... sudah
+      // dipakai produk lain") -- render it next to the field it's about,
+      // rather than in a toast.
+      setBarcodeError(
+        err instanceof ApiError
+          ? err.message
+          : "Tidak dapat menghubungi server kasir."
+      )
     }
-    onOpenChange(false)
   }
 
-  function handleDelete() {
-    if (isEditing) {
-      deleteProduct(product.id)
-      onOpenChange(false)
-    }
+  async function handleDelete() {
+    if (!isEditing) return
+    await deleteProduct.mutateAsync(product.id)
+    onOpenChange(false)
   }
 
   return (
@@ -71,7 +101,8 @@ export function ProductFormDialog({
             </DialogTitle>
             {isEditing && (
               <div className="mt-1 font-mono text-[11.5px] text-muted-foreground">
-                Diperbarui {formatDateID(new Date(product.updatedAt))} oleh {product.updatedBy}
+                Diperbarui {formatDateID(new Date(product.updatedAt))} oleh{" "}
+                {product.updatedBy}
               </div>
             )}
           </div>
@@ -84,10 +115,16 @@ export function ProductFormDialog({
             <Input
               id="barcode"
               value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
+              onChange={(e) => {
+                setBarcode(e.target.value)
+                setBarcodeError(null)
+              }}
               className="border-b-2 font-mono text-[15px]"
               placeholder="Pindai atau ketik barkode"
             />
+            {barcodeError && (
+              <p className="mt-1.5 text-sm text-destructive">{barcodeError}</p>
+            )}
           </div>
           <div className="col-span-2">
             <Label htmlFor="name" className="mb-2">
@@ -106,7 +143,9 @@ export function ProductFormDialog({
             </Label>
             <InputGroup>
               <InputGroupAddon>
-                <span className="font-mono text-sm text-muted-foreground/60">Rp</span>
+                <span className="font-mono text-sm text-muted-foreground/60">
+                  Rp
+                </span>
               </InputGroupAddon>
               <InputGroupInput
                 id="price"
@@ -126,6 +165,7 @@ export function ProductFormDialog({
             <Button
               type="button"
               variant="destructive"
+              disabled={deleteProduct.isPending}
               onClick={handleDelete}
               className="normal-case"
             >
@@ -138,13 +178,19 @@ export function ProductFormDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isSaving}
               onClick={() => onOpenChange(false)}
               className="normal-case"
             >
               Batal
             </Button>
-            <Button type="button" onClick={handleSave} className="normal-case">
-              Simpan produk
+            <Button
+              type="button"
+              disabled={isSaving}
+              onClick={handleSave}
+              className="normal-case"
+            >
+              {isSaving ? "Menyimpan…" : "Simpan produk"}
             </Button>
           </div>
         </DialogFooter>

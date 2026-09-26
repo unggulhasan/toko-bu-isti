@@ -3,7 +3,11 @@
 import { SearchIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 
 export function ProductSearchBar({
   query,

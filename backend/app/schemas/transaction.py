@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import Field
 
 from ..models import TransactionStatus
@@ -41,13 +39,20 @@ class TransactionOut(CamelModel):
 class TransactionListItem(CamelModel):
     """The list omits `lines` for payload size; the receipt panel fetches detail
     by id. This is a change from today's frontend, where every transaction arrives
-    with its lines attached."""
+    with its lines attached.
+
+    `units` is the one aggregate the transactions table still needs from those
+    omitted lines (its "Barang" column) -- fetched separately as a grouped
+    SUM(qty) per page rather than shipping the lines themselves. It is not a
+    column on Transaction, so the router attaches it before validating.
+    """
 
     id: str
     sale_number: int
     total: int
     tendered: int
     change: int
+    units: int
     cashier_name: str
     created_at: UtcDateTime
     status: TransactionStatus
@@ -78,8 +83,3 @@ class SummaryOut(CamelModel):
     gross: int
     cash_in_drawer: int
     voided_count: int
-
-
-class DateRange(CamelModel):
-    from_: datetime | None = Field(default=None, alias="from")
-    to: datetime | None = None

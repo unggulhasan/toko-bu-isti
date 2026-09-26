@@ -1,6 +1,12 @@
 "use client"
 
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react"
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react"
 import { XIcon } from "lucide-react"
 
 import {
@@ -14,7 +20,9 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { formatNumber } from "@/lib/format"
 import { lineAmount } from "@/lib/pos-calculations"
-import { useSalesStore } from "@/lib/store/sales-store"
+import { useActiveSale } from "@/lib/hooks/use-active-sale"
+import { useRemoveLine, useSetLineQty } from "@/lib/hooks/use-open-sales"
+import { usePosUiStore } from "@/lib/store/pos-ui-store"
 
 const MIN_QTY = 0
 const MAX_QTY = 1000
@@ -23,79 +31,122 @@ export type CartTableHandle = {
   focusQty: (lineId: string) => void
 }
 
-export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }>(
-  function CartTable({ onQtyEnter }, ref) {
-    const {
-      activeSale: getActiveSale,
-      justScannedLineId,
-      setLineQty,
-      removeLine,
-      selectedLineId,
-      setSelectedLineId,
-    } = useSalesStore()
-    const activeSale = getActiveSale()
-    const qtyInputRefs = useRef(new Map<string, HTMLInputElement>())
-    const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
-    const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({})
+export const CartTable = forwardRef<
+  CartTableHandle,
+  { onQtyEnter?: () => void }
+>(function CartTable({ onQtyEnter }, ref) {
+  const { sale: activeSale } = useActiveSale()
+  const justScannedLineId = usePosUiStore((s) => s.justScannedLineId)
+  const selectedLineId = usePosUiStore((s) => s.selectedLineId)
+  const setSelectedLineId = usePosUiStore((s) => s.setSelectedLineId)
+  const setLineQty = useSetLineQty()
+  const removeLine = useRemoveLine()
+  const qtyInputRefs = useRef(new Map<string, HTMLInputElement>())
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>())
+  const [qtyDrafts, setQtyDrafts] = useState<Record<string, string>>({})
+  const [pendingLineIds, setPendingLineIds] = useState<Set<string>>(new Set())
 
-    const lines = activeSale?.lines ?? []
+  const lines = activeSale?.lines ?? []
 
-    useEffect(() => {
-      if (justScannedLineId) {
-        rowRefs.current.get(justScannedLineId)?.scrollIntoView({ block: "nearest" })
-      }
-    }, [justScannedLineId])
-
-    useEffect(() => {
-      if (selectedLineId) {
-        rowRefs.current.get(selectedLineId)?.scrollIntoView({ block: "nearest" })
-      }
-    }, [selectedLineId])
-
-    useImperativeHandle(ref, () => ({
-      focusQty: (lineId) => {
-        const input = qtyInputRefs.current.get(lineId)
-        input?.focus()
-        input?.select()
-      },
-    }))
-
-    function selectLine(lineId: string) {
-      setSelectedLineId(lineId)
+  useEffect(() => {
+    if (justScannedLineId) {
+      rowRefs.current
+        .get(justScannedLineId)
+        ?.scrollIntoView({ block: "nearest" })
     }
+  }, [justScannedLineId])
 
-    function setDraft(lineId: string, raw: string) {
-      setQtyDrafts((prev) => ({ ...prev, [lineId]: raw }))
+  useEffect(() => {
+    if (selectedLineId) {
+      rowRefs.current.get(selectedLineId)?.scrollIntoView({ block: "nearest" })
     }
+  }, [selectedLineId])
 
-    function clearDraft(lineId: string) {
-      setQtyDrafts((prev) => {
-        const { [lineId]: _removed, ...rest } = prev
-        return rest
-      })
+  useImperativeHandle(ref, () => ({
+    focusQty: (lineId) => {
+      const input = qtyInputRefs.current.get(lineId)
+      input?.focus()
+      input?.select()
+    },
+  }))
+
+  function selectLine(lineId: string) {
+    setSelectedLineId(lineId)
+  }
+
+  function setDraft(lineId: string, raw: string) {
+    setQtyDrafts((prev) => ({ ...prev, [lineId]: raw }))
+  }
+
+  function clearDraft(lineId: string) {
+    setQtyDrafts((prev) => {
+      const { [lineId]: _removed, ...rest } = prev
+      return rest
+    })
+  }
+
+  function markPending(lineId: string, pending: boolean) {
+    setPendingLineIds((prev) => {
+      const next = new Set(prev)
+      if (pending) next.add(lineId)
+      else next.delete(lineId)
+      return next
+    })
+  }
+
+  function commitQty(lineId: string) {
+    const raw = qtyDrafts[lineId]
+    if (raw === undefined) return
+    if (!activeSale) {
+      clearDraft(lineId)
+      return
     }
-
-    function commitQty(lineId: string) {
-      const raw = qtyDrafts[lineId]
-      if (raw === undefined) return
-      const qty = Number(raw)
-      if (raw !== "" && Number.isFinite(qty)) {
-        setLineQty(lineId, Math.max(MIN_QTY, Math.min(MAX_QTY, qty)))
-      }
+    const qty = Number(raw)
+    if (raw !== "" && Number.isFinite(qty)) {
+      markPending(lineId, true)
+      setLineQty.mutate(
+        {
+          saleId: activeSale.id,
+          lineId,
+          qty: Math.max(MIN_QTY, Math.min(MAX_QTY, qty)),
+        },
+        {
+          // Clear the draft only once the server has replied, not
+          // synchronously -- clearing it right away would snap the input
+          // to the stale server qty for one round-trip and then jump
+          // again once the response lands.
+          onSettled: () => {
+            markPending(lineId, false)
+            clearDraft(lineId)
+          },
+        }
+      )
+    } else {
       clearDraft(lineId)
     }
+  }
 
-    return (
+  return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border border-border bg-card">
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full caption-bottom text-sm">
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky top-0 z-10 bg-card text-center">No</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card">Barang</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card text-center">Jml</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card text-right">Harga (Rp)</TableHead>
-              <TableHead className="sticky top-0 z-10 bg-card text-right">Jumlah (Rp)</TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-center">
+                No
+              </TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card">
+                Barang
+              </TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-center">
+                Jml
+              </TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">
+                Harga (Rp)
+              </TableHead>
+              <TableHead className="sticky top-0 z-10 bg-card text-right">
+                Jumlah (Rp)
+              </TableHead>
               <TableHead className="sticky top-0 z-10 bg-card" />
             </TableRow>
           </TableHeader>
@@ -103,6 +154,7 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
             {lines.map((line, index) => {
               const isSelected = line.id === selectedLineId
               const justScanned = line.id === justScannedLineId
+              const isPending = pendingLineIds.has(line.id)
               return (
                 <TableRow
                   key={line.id}
@@ -113,7 +165,8 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                   className={cn(
                     "scroll-mt-12",
                     justScanned && "bg-primary/8",
-                    isSelected && "bg-muted"
+                    isSelected && "bg-muted",
+                    isPending && "opacity-60"
                   )}
                 >
                   <TableCell className="py-2 text-center font-mono text-base text-muted-foreground">
@@ -173,7 +226,13 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
                   <TableCell className="py-2 text-center">
                     <button
                       type="button"
-                      onClick={() => removeLine(line.id)}
+                      onClick={() =>
+                        activeSale &&
+                        removeLine.mutate({
+                          saleId: activeSale.id,
+                          lineId: line.id,
+                        })
+                      }
                       className="text-muted-foreground/50 hover:text-destructive"
                       aria-label={`Hapus ${line.name}`}
                     >
@@ -187,6 +246,5 @@ export const CartTable = forwardRef<CartTableHandle, { onQtyEnter?: () => void }
         </table>
       </div>
     </div>
-    )
-  }
-)
+  )
+})

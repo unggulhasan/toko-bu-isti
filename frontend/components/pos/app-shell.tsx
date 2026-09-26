@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 import { LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { cashierName, logout } = useSessionStore()
   // Filled in on the client only: rendering the date during SSR risks serializing
   // a different day than the browser, and a static value would never roll over.
@@ -32,6 +34,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   function handleLogout() {
     logout()
+    // Otherwise the next cashier's first paint shows this cashier's cached
+    // open sales and transactions.
+    queryClient.clear()
     router.push("/login")
   }
 
@@ -44,14 +49,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <nav className="ml-2 flex gap-0.5">
           {NAV_ITEMS.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href)
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
                   "px-4 py-3.5 text-[15px] text-shell-foreground/60",
-                  active && "font-semibold text-shell-foreground shadow-[inset_0_-3px_0_var(--primary)]"
+                  active &&
+                    "font-semibold text-shell-foreground shadow-[inset_0_-3px_0_var(--primary)]"
                 )}
               >
                 {item.label}
@@ -74,7 +83,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </Button>
         </div>
       </header>
-      <main className="flex min-h-0 flex-1 flex-col bg-background">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col bg-background">
+        {children}
+      </main>
     </div>
   )
 }

@@ -9,11 +9,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group"
 import { formatNumber, formatRupiah, parseRupiahInput } from "@/lib/format"
-import { saleTotal, saleUnits } from "@/lib/pos-calculations"
-import { useSalesStore } from "@/lib/store/sales-store"
-import { useTransactionsStore } from "@/lib/store/transactions-store"
+import { ApiError } from "@/lib/api/client"
+import { useActiveSale } from "@/lib/hooks/use-active-sale"
+import { useCheckout } from "@/lib/hooks/use-transactions"
 import { useSessionStore } from "@/lib/store/session-store"
 import { toast } from "@/components/ui/toast"
 
@@ -24,31 +28,65 @@ export function CashPaymentDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const activeSale = useSalesStore((s) => s.activeSale())
-  const activeSaleNumber = useSalesStore(
-    (s) => s.sales.findIndex((sale) => sale.id === s.activeSaleId) + 1
-  )
-  const clearActiveSaleAfterPayment = useSalesStore(
-    (s) => s.clearActiveSaleAfterPayment
-  )
-  const commitSale = useTransactionsStore((s) => s.commitSale)
-  const { cashierName } = useSessionStore()
+  const { sale: activeSale, activeIndex } = useActiveSale()
+  const activeSaleNumber = activeIndex + 1
+  const checkout = useCheckout()
+  const logout = useSessionStore((s) => s.logout)
   const [tenderedRaw, setTenderedRaw] = useState("")
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const lines = activeSale?.lines ?? []
-  const total = saleTotal(lines)
-  const units = saleUnits(lines)
+  const total = activeSale?.total ?? 0
+  const units = activeSale?.units ?? 0
   const tendered = parseRupiahInput(tenderedRaw)
   const change = tendered - total
-  const canConfirm = activeSale != null && lines.length > 0 && tendered >= total
+  const canConfirm =
+    activeSale != null &&
+    lines.length > 0 &&
+    tendered >= total &&
+    !checkout.isPending
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!canConfirm || !activeSale) return
-    commitSale(activeSale, total, tendered, cashierName)
-    clearActiveSaleAfterPayment()
-    setTenderedRaw("")
-    onOpenChange(false)
-    toast.add({ title: "Struk dicetak", description: `Transaksi #${activeSaleNumber} selesai.` })
+    setErrorMessage(null)
+    try {
+      const txn = await checkout.mutateAsync({
+        openSaleId: activeSale.id,
+        tendered,
+      })
+      // The server deletes the open sale and invalidation drops it from the
+      // strip / moves the active cart on -- no client-side cart surgery here.
+      setTenderedRaw("")
+      onOpenChange(false)
+      toast.add({
+        title: "Struk dicetak",
+        description: `Transaksi #${txn.saleNumber} selesai.`,
+      })
+    } catch (err) {
+      // Deliberately do NOT close the dialog or clear the cart on failure --
+      // the old code cleared the cart unconditionally, which would have
+      // silently lost a sale on a failed commit.
+      if (err instanceof ApiError) {
+        if (err.code === "INSUFFICIENT_TENDER") {
+          setErrorMessage(
+            "Uang diterima kurang dari total. Total telah diperbarui."
+          )
+        } else if (
+          err.code === "EMPTY_SALE" ||
+          err.code === "OPEN_SALE_NOT_FOUND"
+        ) {
+          // Another terminal paid or deleted this cart first.
+          setErrorMessage(err.message)
+          onOpenChange(false)
+        } else if (err.code === "UNKNOWN_CASHIER") {
+          logout()
+        } else {
+          setErrorMessage(err.message)
+        }
+      } else {
+        setErrorMessage("Tidak dapat menghubungi server kasir. Coba lagi.")
+      }
+    }
   }
 
   return (
@@ -56,7 +94,10 @@ export function CashPaymentDialog({
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next)
-        if (!next) setTenderedRaw("")
+        if (!next) {
+          setTenderedRaw("")
+          setErrorMessage(null)
+        }
       }}
     >
       <DialogContent
@@ -69,7 +110,8 @@ export function CashPaymentDialog({
               Pembayaran tunai
             </DialogTitle>
             <div className="mt-1 font-mono text-[14px] text-muted-foreground">
-              Transaksi #{activeSaleNumber} · {lines.length} baris · {units} unit
+              Transaksi #{activeSaleNumber} · {lines.length} baris · {units}{" "}
+              unit
             </div>
           </div>
         </DialogHeader>
@@ -86,13 +128,18 @@ export function CashPaymentDialog({
             </div>
             <InputGroup className="mt-2.5 h-auto border-2 border-primary px-4.5 py-3.5 shadow-[0_0_0_4px_rgba(26,92,84,0.1)]">
               <InputGroupAddon>
-                <span className="font-mono text-3xl text-muted-foreground/60">Rp</span>
+                <span className="font-mono text-3xl text-muted-foreground/60">
+                  Rp
+                </span>
               </InputGroupAddon>
               <InputGroupInput
                 autoFocus
                 inputMode="numeric"
                 value={tendered > 0 ? formatNumber(tendered) : ""}
-                onChange={(e) => setTenderedRaw(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => {
+                  setTenderedRaw(e.target.value.replace(/\D/g, ""))
+                  setErrorMessage(null)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault()
@@ -103,6 +150,9 @@ export function CashPaymentDialog({
                 placeholder="0"
               />
             </InputGroup>
+            {errorMessage && (
+              <p className="mt-2.5 text-sm text-destructive">{errorMessage}</p>
+            )}
             <div className="mt-6 font-mono text-sm leading-relaxed text-muted-foreground">
               Enter untuk konfirmasi · Esc untuk batal
               <br />
@@ -129,7 +179,7 @@ export function CashPaymentDialog({
               onClick={handleConfirm}
               className="mt-6 h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90"
             >
-              Konfirmasi &amp; cetak struk
+              {checkout.isPending ? "Memproses…" : "Konfirmasi & cetak struk"}
             </Button>
           </div>
         </div>

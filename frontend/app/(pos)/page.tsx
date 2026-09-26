@@ -7,16 +7,23 @@ import { ScanInput, type ScanInputHandle } from "@/components/pos/scan-input"
 import { CartTable, type CartTableHandle } from "@/components/pos/cart-table"
 import { CartSummaryPanel } from "@/components/pos/cart-summary-panel"
 import { CashPaymentDialog } from "@/components/pos/cash-payment-dialog"
+import { Spinner } from "@/components/ui/spinner"
 import { useHotkeys } from "@/hooks/use-hotkeys"
-import { useSalesStore } from "@/lib/store/sales-store"
-import { saleUnits } from "@/lib/pos-calculations"
+import { ApiError } from "@/lib/api/client"
+import { useActiveSale, useCycleActiveSale } from "@/lib/hooks/use-active-sale"
+import { useOpenSales } from "@/lib/hooks/use-open-sales"
 
 export default function CheckoutPage() {
   const [paymentOpen, setPaymentOpen] = useState(false)
   const scanInputRef = useRef<ScanInputHandle>(null)
   const cartTableRef = useRef<CartTableHandle>(null)
-  const activeSale = useSalesStore((s) => s.activeSale())
-  const cycleActiveSale = useSalesStore((s) => s.cycleActiveSale)
+
+  // This page owns the open-sales bootstrap (POSTs a cart when the list
+  // comes back empty) -- mount useOpenSales() nowhere else, or the guard
+  // that prevents duplicate carts stops working.
+  const openSales = useOpenSales()
+  const { sale: activeSale } = useActiveSale()
+  const cycleActiveSale = useCycleActiveSale()
   const lines = activeSale?.lines ?? []
 
   function openPayment() {
@@ -28,6 +35,26 @@ export default function CheckoutPage() {
     onPay: openPayment,
     onNextSale: () => cycleActiveSale(1),
   })
+
+  if (openSales.isError) {
+    const message =
+      openSales.error instanceof ApiError && openSales.error.kind === "network"
+        ? openSales.error.message
+        : "Tidak dapat memuat transaksi. Muat ulang halaman."
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-background">
+        <p className="text-sm text-destructive">{message}</p>
+      </div>
+    )
+  }
+
+  if (openSales.isLoading || !activeSale) {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center bg-background">
+        <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -46,7 +73,8 @@ export default function CheckoutPage() {
               Transaksi ini
             </span>
             <span className="font-mono text-xs text-muted-foreground">
-              {lines.length} baris · {saleUnits(lines)} unit · ↑↓ pilih baris · ketik untuk ubah jumlah
+              {activeSale.lineCount} baris · {activeSale.units} unit · ↑↓ pilih
+              baris · ketik untuk ubah jumlah
             </span>
           </div>
           <CartTable

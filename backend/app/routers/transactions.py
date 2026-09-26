@@ -80,9 +80,38 @@ def list_transactions(
         .limit(page_size)
         .offset(page * page_size)
     ).all()
-    return paginate(
-        [TransactionListItem.model_validate(r) for r in rows], total, page, page_size
-    )
+
+    # units (the "Barang" column) without shipping lines: one grouped SUM(qty)
+    # over just this page's transaction ids, using the existing index on
+    # transaction_lines.transaction_id.
+    ids = [row.id for row in rows]
+    units_by_txn: dict[str, int] = {}
+    if ids:
+        units_by_txn = dict(
+            db.execute(
+                select(TransactionLine.transaction_id, func.sum(TransactionLine.qty))
+                .where(TransactionLine.transaction_id.in_(ids))
+                .group_by(TransactionLine.transaction_id)
+            ).all()
+        )
+
+    items = [
+        TransactionListItem(
+            id=row.id,
+            sale_number=row.sale_number,
+            total=row.total,
+            tendered=row.tendered,
+            change=row.change,
+            units=units_by_txn.get(row.id, 0),
+            cashier_name=row.cashier_name,
+            created_at=row.created_at,
+            status=row.status,
+            voided_at=row.voided_at,
+            voided_by=row.voided_by,
+        )
+        for row in rows
+    ]
+    return paginate(items, total, page, page_size)
 
 
 # Declared before /{transaction_id}, or "summary" would be matched as an id.

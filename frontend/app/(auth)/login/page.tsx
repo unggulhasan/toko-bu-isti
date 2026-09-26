@@ -12,16 +12,19 @@ import {
 import { Label } from "@/components/ui/label"
 import { formatClock, formatDateID } from "@/lib/format"
 import { getGreeting } from "@/lib/greeting"
+import { ApiError } from "@/lib/api/client"
+import { useLogin } from "@/lib/hooks/use-auth"
 import { useSessionHydrated, useSessionStore } from "@/lib/store/session-store"
 
 export default function LoginPage() {
   const router = useRouter()
   const [now, setNow] = useState(() => new Date())
   const [password, setPassword] = useState("")
-  const [error, setError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const hydrated = useSessionHydrated()
   const isLoggedIn = useSessionStore((state) => state.isLoggedIn)
-  const login = useSessionStore((state) => state.login)
+  const setSession = useSessionStore((state) => state.setSession)
+  const loginMutation = useLogin()
 
   useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 1000)
@@ -34,13 +37,19 @@ export default function LoginPage() {
     }
   }, [hydrated, isLoggedIn, router])
 
-  function handleSubmit(formData: FormData) {
-    const value = String(formData.get("password") ?? "")
-    if (login(value)) {
+  async function handleSubmit(formData: FormData) {
+    const pin = String(formData.get("password") ?? "")
+    try {
+      const { cashier } = await loginMutation.mutateAsync(pin)
+      setSession(cashier)
       router.push("/")
-    } else {
-      setError(true)
+    } catch (err) {
       setPassword("")
+      setErrorMessage(
+        err instanceof ApiError && err.kind === "network"
+          ? "Tidak dapat menghubungi server kasir."
+          : "Kata sandi salah. Coba lagi."
+      )
     }
   }
 
@@ -55,7 +64,7 @@ export default function LoginPage() {
           </span>
         </div>
         <div className="absolute right-7.5 bottom-7.5 flex flex-col items-end gap-1.5">
-          <span className="rounded-sm bg-shell/72 px-3 py-1.5 font-serif text-[22px] italic text-shell-foreground">
+          <span className="rounded-sm bg-shell/72 px-3 py-1.5 font-serif text-[22px] text-shell-foreground italic">
             Toko kami, Jl. Pelabuhan 7
           </span>
         </div>
@@ -90,8 +99,9 @@ export default function LoginPage() {
               value={password}
               onChange={(value) => {
                 setPassword(value)
-                setError(false)
+                setErrorMessage(null)
               }}
+              disabled={loginMutation.isPending}
               containerClassName="justify-between"
             >
               <InputOTPGroup className="w-full justify-between gap-2">
@@ -104,11 +114,15 @@ export default function LoginPage() {
                 ))}
               </InputOTPGroup>
             </InputOTP>
-            {error && (
-              <p className="mt-2 text-sm text-destructive">Kata sandi salah. Coba lagi.</p>
+            {errorMessage && (
+              <p className="mt-2 text-sm text-destructive">{errorMessage}</p>
             )}
-            <Button type="submit" className="mt-3.5 h-auto w-full py-4 text-[15.5px] normal-case">
-              Masuk
+            <Button
+              type="submit"
+              disabled={loginMutation.isPending}
+              className="mt-3.5 h-auto w-full py-4 text-[15.5px] normal-case"
+            >
+              {loginMutation.isPending ? "Memeriksa…" : "Masuk"}
             </Button>
           </form>
           <div className="mt-3 font-mono text-[11px] text-muted-foreground">

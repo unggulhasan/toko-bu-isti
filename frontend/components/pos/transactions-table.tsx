@@ -10,15 +10,14 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 import { formatClock, formatNumber } from "@/lib/format"
-import { saleUnits } from "@/lib/pos-calculations"
-import type { Transaction } from "@/lib/types"
+import type { TransactionListItem } from "@/lib/types"
 
 export function TransactionsTable({
   transactions,
   selectedId,
   onSelect,
 }: {
-  transactions: Transaction[]
+  transactions: TransactionListItem[]
   selectedId: string | null
   onSelect: (id: string) => void
 }) {
@@ -48,8 +47,13 @@ export function TransactionsTable({
                   isVoided && "text-muted-foreground"
                 )}
               >
-                <TableCell className={cn("font-bold", isVoided && "font-normal line-through")}>
-                  #{t.saleNumber ?? "—"}
+                <TableCell
+                  className={cn(
+                    "font-bold",
+                    isVoided && "font-normal line-through"
+                  )}
+                >
+                  #{t.saleNumber}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {formatClock(new Date(t.createdAt))}
@@ -59,9 +63,14 @@ export function TransactionsTable({
                   {isVoided && " · dibatalkan"}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
-                  {saleUnits(t.lines)}
+                  {t.units}
                 </TableCell>
-                <TableCell className={cn("text-right font-semibold", isVoided && "font-normal line-through")}>
+                <TableCell
+                  className={cn(
+                    "text-right font-semibold",
+                    isVoided && "font-normal line-through"
+                  )}
+                >
                   {formatNumber(t.total)}
                 </TableCell>
               </TableRow>

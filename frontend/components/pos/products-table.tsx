@@ -35,7 +35,9 @@ export function ProductsTable({
               <TableCell className="font-mono text-[12.5px] text-muted-foreground">
                 {product.barcode}
               </TableCell>
-              <TableCell className="text-[14px] text-foreground">{product.name}</TableCell>
+              <TableCell className="text-[14px] text-foreground">
+                {product.name}
+              </TableCell>
               <TableCell className="text-right font-mono text-[14px]">
                 {formatRupiah(product.price)}
               </TableCell>
@@ -52,7 +54,10 @@ export function ProductsTable({
           ))}
           {products.length === 0 && (
             <TableRow>
-              <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+              <TableCell
+                colSpan={4}
+                className="py-8 text-center text-sm text-muted-foreground"
+              >
                 Tidak ada produk yang cocok.
               </TableCell>
             </TableRow>

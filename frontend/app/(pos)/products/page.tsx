@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 
 import {
   Pagination,
@@ -13,32 +13,35 @@ import {
 import { ProductSearchBar } from "@/components/pos/product-search-bar"
 import { ProductsTable } from "@/components/pos/products-table"
 import { ProductFormDialog } from "@/components/pos/product-form-dialog"
-import { useProductsStore } from "@/lib/store/products-store"
+import { useProducts } from "@/lib/hooks/use-products"
 import type { Product } from "@/lib/types"
 
 const PAGE_SIZE = 8
+// The search bar is a controlled input rendering on every keystroke; the
+// debounce lives here so typing doesn't refetch on each character.
+const DEBOUNCE_MS = 250
 
 export default function ProductsPage() {
-  const products = useProductsStore((s) => s.products)
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return products
-    return products.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.barcode.includes(q)
-    )
-  }, [products, query])
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [query])
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const currentPage = Math.min(page, pageCount - 1)
-  const pageItems = filtered.slice(
-    currentPage * PAGE_SIZE,
-    currentPage * PAGE_SIZE + PAGE_SIZE
-  )
+  const { data, isLoading } = useProducts({
+    q: debouncedQuery,
+    page,
+    pageSize: PAGE_SIZE,
+  })
+
+  const pageItems = data?.items ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, data?.pageCount ?? 1)
 
   function openNewProduct() {
     setEditingProduct(null)
@@ -58,7 +61,9 @@ export default function ProductsPage() {
             Produk
           </div>
           <div className="mt-1 text-[12.5px] text-muted-foreground">
-            {products.length} produk
+            {/* total is now the filtered count once q is set -- relabel so
+                it doesn't read as the whole catalog size while searching. */}
+            {debouncedQuery.trim() ? `${total} hasil` : `${total} produk`}
           </div>
         </div>
         <ProductSearchBar
@@ -73,7 +78,9 @@ export default function ProductsPage() {
       <ProductsTable products={pageItems} onEdit={openEditProduct} />
       <div className="mt-3.5 flex items-center justify-between text-[12.5px] text-muted-foreground">
         <span>
-          Menampilkan {pageItems.length} dari {filtered.length}
+          {isLoading
+            ? "Memuat…"
+            : `Menampilkan ${pageItems.length} dari ${total}`}
         </span>
         <Pagination className="mx-0 w-auto justify-end">
           <PaginationContent>
@@ -84,13 +91,13 @@ export default function ProductsPage() {
                   e.preventDefault()
                   setPage((p) => Math.max(0, p - 1))
                 }}
-                aria-disabled={currentPage === 0}
+                aria-disabled={page === 0}
               />
             </PaginationItem>
             {Array.from({ length: pageCount }, (_, i) => (
               <PaginationItem key={i}>
                 <PaginationLink
-                  isActive={i === currentPage}
+                  isActive={i === page}
                   onClick={(e) => {
                     e.preventDefault()
                     setPage(i)
@@ -107,7 +114,7 @@ export default function ProductsPage() {
                   e.preventDefault()
                   setPage((p) => Math.min(pageCount - 1, p + 1))
                 }}
-                aria-disabled={currentPage === pageCount - 1}
+                aria-disabled={page === pageCount - 1}
               />
             </PaginationItem>
           </PaginationContent>

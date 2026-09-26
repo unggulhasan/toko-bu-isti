@@ -2,39 +2,52 @@ import { useSyncExternalStore } from "react"
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-const CASHIERS: Record<string, { cashierName: string }> = {
-  "1234": { cashierName: "Kasir 1" },
-  "7890": { cashierName: "Kasir 2" },
-}
+import type { Cashier } from "@/lib/types"
 
 type SessionState = {
   isLoggedIn: boolean
+  cashierId: string
   cashierName: string
 }
 
 type SessionActions = {
-  login: (password: string) => boolean
+  // No `login` here on purpose: the store has no dependency on the API
+  // module. The login page owns the useLogin() mutation and calls setSession
+  // on success, which is what lets it tell "PIN salah" apart from "server
+  // tidak terhubung" -- a distinction the mutation's ApiError.kind already
+  // carries.
+  setSession: (cashier: Cashier) => void
   logout: () => void
+}
+
+const initialState: SessionState = {
+  isLoggedIn: false,
+  cashierId: "",
+  cashierName: "",
 }
 
 export const useSessionStore = create<SessionState & SessionActions>()(
   persist(
     (set) => ({
-      isLoggedIn: false,
-      cashierName: "",
-      login: (password) => {
-        const cashier = CASHIERS[password]
-        if (!cashier) return false
-        set({ isLoggedIn: true, ...cashier })
-        return true
+      ...initialState,
+      setSession: (cashier) => {
+        set({
+          isLoggedIn: true,
+          cashierId: cashier.id,
+          cashierName: cashier.name,
+        })
       },
       logout: () => {
-        set({ isLoggedIn: false, cashierName: "" })
+        set({ ...initialState })
       },
     }),
     {
       name: "pos:session",
       skipHydration: true,
+      // v1 blobs (before cashierId existed) must not rehydrate as logged in --
+      // every guarded mutation would 422 on a missing X-Cashier-Id header.
+      version: 2,
+      migrate: () => ({ ...initialState }),
     }
   )
 )
