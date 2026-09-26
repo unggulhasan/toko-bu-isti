@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from zoneinfo import ZoneInfo
+
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -48,3 +50,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()  # type: ignore[call-arg]
+
+# The shop is on one Windows PC in Indonesia; the frontend gets local time for
+# free because browser Date methods use the OS timezone, but the backend runs
+# in UTC (created_at is stored in UTC -- see the Firebird session_time_zone
+# note in database.py), so conversions have to happen explicitly.
+STORE_TIMEZONE = ZoneInfo("Asia/Jakarta")

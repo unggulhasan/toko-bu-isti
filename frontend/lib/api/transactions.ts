@@ -1,4 +1,4 @@
-import { request } from "@/lib/api/client"
+import { qs, request } from "@/lib/api/client"
 import type { Transaction } from "@/lib/types"
 
 export function checkout(input: {
@@ -24,4 +24,8 @@ export function printTransaction(id: string): Promise<{ ok: boolean }> {
   return request(`/api/transactions/${id}/print`, {
     method: "POST",
   })
+}
+
+export function reportUrl(date: string): string {
+  return `/api/transactions/report${qs({ date })}`
 }

@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import date as date_
 from datetime import datetime, time, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Query, status
+from fastapi.responses import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
+from ..config import STORE_TIMEZONE
 from ..dependencies import CurrentCashier, DbSession
 from ..errors import already_voided, printer_unavailable, transaction_not_found
 from ..models import Transaction, TransactionLine, TransactionStatus
@@ -21,6 +24,7 @@ from ..schemas.transaction import (
 )
 from ..services.checkout import commit_sale
 from ..services.printer import PrinterError, get_printer, print_receipt
+from ..services.report_pdf import build_daily_report_pdf
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 
@@ -45,6 +49,37 @@ def _day_bounds(
 
 def _range_filters(date_from: datetime, date_to: datetime) -> list:
     return [Transaction.created_at >= date_from, Transaction.created_at < date_to]
+
+
+def _report_bounds(report_date: date_) -> tuple[datetime, datetime, datetime]:
+    """Jakarta-local day bounds for the report, converted to UTC for the query
+    (created_at is stored UTC -- see _day_bounds' docstring for why).
+
+    Unlike _day_bounds (which always returns a full UTC day and defaults to
+    "today"), this always takes an explicit local calendar date and, when that
+    date is today in Jakarta, clips the upper bound to the current moment
+    instead of midnight tomorrow -- the day isn't over, so a full-day window
+    would silently include a zero-value future slice.
+    """
+    now_utc = datetime.now(timezone.utc)
+    today_jakarta = now_utc.astimezone(STORE_TIMEZONE).date()
+
+    start_local = datetime.combine(report_date, time.min, tzinfo=STORE_TIMEZONE)
+    if report_date >= today_jakarta:
+        # Today (or, defensively, a future date the frontend shouldn't send):
+        # stop at "now", not midnight tomorrow. For a future date this makes
+        # start_utc > end_utc, which simply matches zero transactions below --
+        # no separate validation error needed.
+        end_utc = now_utc
+    else:
+        end_local = start_local + timedelta(days=1)
+        end_utc = end_local.astimezone(timezone.utc)
+
+    start_utc = start_local.astimezone(timezone.utc)
+    # created_at columns are stored naive (UTC values with tzinfo stripped --
+    # see void_transaction's comment on the same pattern), so strip tzinfo
+    # before comparing against them.
+    return start_utc.replace(tzinfo=None), end_utc.replace(tzinfo=None), now_utc
 
 
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
@@ -169,6 +204,37 @@ def get_transaction_by_number(sale_number: int, db: DbSession) -> TransactionOut
     if txn is None:
         raise transaction_not_found()
     return TransactionOut.model_validate(txn)
+
+
+# Declared before /{transaction_id}, or "report" would be matched as an id.
+@router.get("/report")
+def daily_report(
+    db: DbSession, report_date: Annotated[date_, Query(alias="date")]
+) -> Response:
+    """Full itemized PDF for one shop-local calendar day. If `date` is today
+    (Jakarta), the range stops at "now" rather than midnight -- the day isn't
+    over yet, so a full-day query would just return a partial day's worth
+    anyway; being explicit about the cutoff keeps the "as of" timestamp on the
+    PDF honest. No cashier auth is required -- this is a read-only report.
+    """
+    date_from_utc, date_to_utc, generated_at = _report_bounds(report_date)
+    txns = db.scalars(
+        select(Transaction)
+        .options(selectinload(Transaction.lines))
+        .where(Transaction.created_at >= date_from_utc, Transaction.created_at < date_to_utc)
+        # Chronological, not newest-first: a printed report reads top-to-bottom.
+        .order_by(Transaction.created_at.asc(), Transaction.sale_number.asc())
+    ).all()
+
+    pdf_bytes = build_daily_report_pdf(
+        transactions=list(txns), report_date=report_date, generated_at=generated_at
+    )
+    filename = f"laporan-harian-{report_date.isoformat()}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
 
 
 @router.get("/{transaction_id}", response_model=TransactionOut)

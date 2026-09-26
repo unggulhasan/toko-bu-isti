@@ -8,7 +8,6 @@ is a .env setting (PRINTER_BACKEND), not a code change -- see config.py.
 from __future__ import annotations
 
 from datetime import timezone
-from zoneinfo import ZoneInfo
 
 import barcode as barcode_lib
 import usb.core
@@ -17,16 +16,10 @@ from escpos.escpos import Escpos
 from escpos.exceptions import Error as EscposError
 from escpos.printer import Dummy, Network, Usb
 
-from ..config import settings
+from ..config import STORE_TIMEZONE, settings
 from ..models import Transaction, TransactionStatus
 
 STORE_NAME = "TOKO BU ISTI"
-
-# The shop is on one Windows PC in Indonesia; the frontend gets local time for
-# free because browser Date methods use the OS timezone, but this runs server-side
-# in UTC (created_at is stored in UTC -- see the Firebird session_time_zone note in
-# database.py), so the conversion has to happen explicitly here.
-STORE_TIMEZONE = ZoneInfo("Asia/Jakarta")
 
 # The TM-U220D is a 76/69.5/57.5mm dot-matrix printer, not an 80mm thermal one --
 # there is no 80mm mode. At the shop's 76mm roll, Font A prints 35 columns per

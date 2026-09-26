@@ -37,3 +37,13 @@ export function formatDateShortID(date: Date): string {
     year: "numeric",
   })
 }
+
+// Local calendar date as "YYYY-MM-DD" for query params. Never .toISOString()
+// -- that reads UTC fields and would shift the date near midnight in Jakarta
+// (UTC+7).
+export function formatDateParam(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}

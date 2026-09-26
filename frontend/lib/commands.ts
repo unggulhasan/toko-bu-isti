@@ -47,3 +47,43 @@ export function matchCommandsByPrefix(prefix: string): CommandDefinition[] {
   if (!needle) return COMMANDS
   return COMMANDS.filter((c) => c.aliases.some((a) => a.startsWith(needle)))
 }
+
+// Separate from COMMANDS/CommandName above: ScanInput and TransactionLookupInput
+// are different inputs on different pages, never composed together, and
+// ScanInput's runCommand switch is exhaustive on CommandName. Mixing a
+// transactions-page-only command into that union would force ScanInput to
+// handle a case that can never fire there.
+export type TransactionCommandName = "laporanHarian"
+
+export type TransactionCommandDefinition = {
+  name: TransactionCommandName
+  label: string
+  aliases: string[]
+  description: string
+}
+
+export const TRANSACTION_COMMANDS: TransactionCommandDefinition[] = [
+  {
+    name: "laporanHarian",
+    label: "Laporan harian",
+    aliases: ["laporan-harian", "laporan"],
+    description: "Cetak laporan transaksi harian",
+  },
+]
+
+export function matchTransactionCommandsByAlias(
+  alias: string
+): TransactionCommandDefinition | undefined {
+  const needle = alias.toLowerCase()
+  return TRANSACTION_COMMANDS.find((c) => c.aliases.includes(needle))
+}
+
+export function matchTransactionCommandsByPrefix(
+  prefix: string
+): TransactionCommandDefinition[] {
+  const needle = prefix.toLowerCase()
+  if (!needle) return TRANSACTION_COMMANDS
+  return TRANSACTION_COMMANDS.filter((c) =>
+    c.aliases.some((a) => a.startsWith(needle))
+  )
+}
