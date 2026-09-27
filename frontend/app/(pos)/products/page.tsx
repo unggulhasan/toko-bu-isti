@@ -26,7 +26,7 @@ import type { Product } from "@/lib/types"
 const PAGE_SIZE = 10
 // The search bar is a controlled input rendering on every keystroke; the
 // debounce lives here so typing doesn't refetch on each character.
-const DEBOUNCE_MS = 250
+const DEBOUNCE_MS = 500
 
 // Builds a windowed page list (first, last, current +/- 1 neighbor) with
 // `null` standing in for an ellipsis, so the pager doesn't overflow when

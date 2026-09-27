@@ -6,8 +6,13 @@ REM both console windows manually -- either works.
 title Tutup Kasir
 
 echo Menutup kasir...
-taskkill /fi "WINDOWTITLE eq POS - Backend*" /t /f >nul 2>&1
-taskkill /fi "WINDOWTITLE eq POS - Frontend*" /t /f >nul 2>&1
+
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
+    taskkill /pid %%p /t /f >nul 2>&1
+)
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
+    taskkill /pid %%p /t /f >nul 2>&1
+)
 
 echo.
 echo Kasir sudah ditutup.
