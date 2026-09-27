@@ -74,12 +74,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="sm"
             onClick={handleLogout}
             className="text-shell-foreground/60 hover:bg-shell-foreground/10 hover:text-shell-foreground"
             aria-label="Keluar"
           >
-            <LogOut />
+            Keluar <LogOut className="ml-1.5 size-4" />
           </Button>
         </div>
       </header>

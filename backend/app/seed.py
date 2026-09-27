@@ -124,7 +124,10 @@ CATALOG_CSV_PATH = Path(__file__).parent / "data" / "products_niaga.csv"
 def _load_catalog_products() -> list[tuple[str, str, int]]:
     with CATALOG_CSV_PATH.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return [(row["barcode"], row["name"].upper(), int(row["price"])) for row in reader]
+        return [
+            (row["barcode"].strip(), row["name"].strip().upper(), int(row["price"]))
+            for row in reader
+        ]
 
 
 def _uuid() -> str:
@@ -188,7 +191,10 @@ def main() -> int:
         # above) is combined with the real catalog loaded from CSV. The two are
         # disjoint today; this guard catches it if that ever stops being true.
         catalog_products = _load_catalog_products()
-        curated_products = [(barcode, name.upper(), price) for barcode, name, price in PRODUCTS]
+        curated_products = [
+            (barcode.strip(), name.strip().upper(), price)
+            for barcode, name, price in PRODUCTS
+        ]
         all_products = curated_products + catalog_products
         seen_barcodes: dict[str, str] = {}
         for barcode, name, _price in all_products:
