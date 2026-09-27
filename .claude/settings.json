@@ -13,7 +13,8 @@
       "Bash(./fbtest/bin/python -c ' *)",
       "Bash(git --no-pager diff --stat)",
       "Bash(uv add *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('app/services/printer.py'\\).read\\(\\)\\)\")"
     ]
   }
 }

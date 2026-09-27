@@ -138,12 +138,24 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
         # feeding it GS v 0 prints the raw bytes as garbage text instead of a
         # barcode. Branch on the same backend setting that already picks the
         # transport, since it already stands in for "which physical printer".
-        image_impl = "bitImageColumn" if settings.printer_backend == "usb" else "bitImageRaster"
+        #
+        # bitImageColumn also needs high_density_vertical=False on the TM-U220D:
+        # escpos's default requests 24-dot double-density columns, but the
+        # TM-U220D's head is 9-pin, so only every third dot row lands on a real
+        # pin and the bars come out as scattered dots. 8-dot single-density
+        # matches the head and prints solid bars.
+        is_usb = settings.printer_backend == "usb"
+        image_impl = "bitImageColumn" if is_usb else "bitImageRaster"
         code128 = barcode_lib.get_barcode_class("code128")
         barcode_image = code128(str(txn.sale_number), writer=ImageWriter()).render(
             writer_options={"write_text": False, "module_height": 5, "quiet_zone": 0}
         )
-        printer.image(barcode_image, impl=image_impl, center=True)
+        printer.image(
+            barcode_image,
+            impl=image_impl,
+            high_density_vertical=not is_usb,
+            center=True,
+        )
         printer.text("\n")
     except (EscposError, OSError) as exc:
         raise PrinterError(str(exc)) from exc
