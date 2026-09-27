@@ -128,15 +128,22 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
         # Rendered as an image via python-barcode rather than printer.barcode():
         # neither the hardware GS k command nor escpos's "graphics" (GS ( L)
         # software renderer is understood by escpresso -- the former echoed the
-        # raw command back as literal text, the latter produced nothing. Only the
-        # bitImageRaster (GS v 0) command is actually rendered, and printer.barcode()
-        # has no way to reach that renderer while also suppressing the
-        # human-readable digits under the bars, so the image is built directly.
+        # raw command back as literal text, the latter produced nothing. And
+        # printer.barcode() has no way to reach a specific image renderer while
+        # also suppressing the human-readable digits under the bars, so the image
+        # is built directly. Which image impl renders correctly is itself printer-
+        # dependent: escpresso (dev) only renders bitImageRaster (GS v 0), while
+        # the real TM-U220D (production) is a dot-matrix printer from before that
+        # command existed and only understands the older bitImageColumn (ESC *) --
+        # feeding it GS v 0 prints the raw bytes as garbage text instead of a
+        # barcode. Branch on the same backend setting that already picks the
+        # transport, since it already stands in for "which physical printer".
+        image_impl = "bitImageColumn" if settings.printer_backend == "usb" else "bitImageRaster"
         code128 = barcode_lib.get_barcode_class("code128")
         barcode_image = code128(str(txn.sale_number), writer=ImageWriter()).render(
             writer_options={"write_text": False, "module_height": 5, "quiet_zone": 0}
         )
-        printer.image(barcode_image, impl="bitImageRaster", center=True)
+        printer.image(barcode_image, impl=image_impl, center=True)
         printer.text("\n")
     except (EscposError, OSError) as exc:
         raise PrinterError(str(exc)) from exc
