@@ -74,6 +74,53 @@ say so. Install 64-bit Firebird alongside 64-bit Python.
 
 None of the macOS shims run on Windows; they are guarded on `sys.platform`.
 
+## Printer (Windows, production)
+
+`app/services/printer.py` talks to the Epson TM-U220D directly over raw USB via
+PyUSB/libusb — a completely different path from the Windows print spooler and the
+Epson driver that "Print Test Page" in printer Properties uses. A working Windows
+test page proves nothing about whether this app can print; it exercises a
+different driver stack entirely.
+
+Two one-time OS-level steps are required before `PRINTER_BACKEND=usb` will work,
+neither of which is a code or `.env` problem:
+
+1. **Rebind the printer to a libusb-compatible driver with
+   [Zadig](https://zadig.akeo.ie).** By default the TM-U220D is bound to Windows'
+   own printer class driver, which PyUSB cannot see — `usb.core.find()` (used by
+   `_autodetect_usb_printer()`) returns nothing, surfaced to the cashier as
+   "Tidak dapat menghubungi printer". In Zadig, enable **Options → List All
+   Devices**, select the TM-U220D entry (ignore unrelated devices sharing the
+   same hub), and install **WinUSB**. This detaches it from the normal Windows
+   printing subsystem — the printer disappears from Devices and Printers as a
+   usable queue, which is expected, since this app never used that queue.
+   Afterwards, note the USB ID Zadig shows and set `PRINTER_USB_VENDOR_ID` /
+   `PRINTER_USB_PRODUCT_ID` in `.env` explicitly rather than relying on
+   auto-detect.
+2. **Install `libusb-1.0.dll`.** Zadig installs a *driver* for the device, but
+   PyUSB's Python bindings separately need the `libusb-1.0` *DLL* on `PATH` (or
+   next to `python.exe`), or every printer call fails with
+   `usb.core.NoBackendError: No backend available`. Download the latest
+   `libusb-*-binaries` release from
+   [github.com/libusb/libusb/releases](https://github.com/libusb/libusb/releases),
+   and copy `VS2015-x64\dll\libusb-1.0.dll` (use `x64` for a 64-bit Python venv,
+   almost always correct) into `backend\.venv\Scripts\` or
+   `C:\Windows\System32`.
+
+**The TM-U220D's ESC/POS command dialect also differs from the dev target.**
+`print_receipt` renders the receipt barcode as an image rather than via
+`printer.barcode()` (see the comment at its call site for why), and which image
+command works is itself printer-dependent — escpresso (the dev emulator) only
+renders `bitImageRaster` (`GS v 0`), while the TM-U220D is a 9-pin dot-matrix
+printer that predates that command: sending it `GS v 0` prints the raw bytes as
+garbled text. It understands the older `bitImageColumn` (`ESC *`), but also
+needs `high_density_vertical=False` — escpos's default requests 24-dot columns,
+which only line up with 1 in 3 pins on a 9-pin head and prints the barcode as
+scattered dots instead of solid bars. `printer.py` branches both the impl and
+the density on `PRINTER_BACKEND` for this reason; if a different physical
+printer is ever deployed, its supported command set needs to be re-verified
+rather than assumed from this table.
+
 ## Schema
 
 `schema.sql` is the source of truth, applied by `python -m app.schema_bootstrap`.

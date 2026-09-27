@@ -116,11 +116,32 @@ for step 10.
 
 ### 9. Connect the printer
 
-Plug the Epson TM-U220D into the server PC via USB. No driver install is
-needed — the backend auto-detects it as a USB Printer Class device (see
-[backend/app/services/printer.py](backend/app/services/printer.py)). If the shop
-ever has more than one USB printer attached, set `PRINTER_USB_VENDOR_ID` /
-`PRINTER_USB_PRODUCT_ID` in `backend/.env`.
+The backend talks to the Epson TM-U220D directly over raw USB (PyUSB/libusb) —
+a different path from the Windows print spooler. A working "Print Test Page"
+from printer Properties does **not** mean these steps can be skipped; it
+exercises a different driver stack entirely.
+
+1. Plug the Epson TM-U220D into the server PC via USB and power it on.
+2. Download and run [Zadig](https://zadig.akeo.ie) (no install needed).
+3. In Zadig, open **Options → List All Devices**.
+4. In the device dropdown, select the TM-U220D entry (ignore unrelated devices
+   on the same hub, e.g. a webcam).
+5. Confirm the target driver box shows **WinUSB**, then click **Replace Driver**
+   (or **Install WCID Driver**).
+6. Note the **USB ID** (vendor:product) Zadig shows for the device — you'll need
+   it in step 8. The printer will disappear from Devices and Printers as a
+   usable print queue after this; that's expected, since this app never used
+   that queue.
+7. Download the latest `libusb-*-binaries` release from
+   [github.com/libusb/libusb/releases](https://github.com/libusb/libusb/releases),
+   and copy `VS2015-x64\dll\libusb-1.0.dll` from inside it into
+   `backend\.venv\Scripts\` (or `C:\Windows\System32`). Without this DLL,
+   printing fails with `usb.core.NoBackendError: No backend available`.
+8. In `backend/.env`, set `PRINTER_USB_VENDOR_ID` and `PRINTER_USB_PRODUCT_ID`
+   to the USB ID from step 6.
+
+See [backend/README.md](backend/README.md#printer-windows-production) for the
+full detail, including why the barcode render mode also differs from dev.
 
 ### 10. Open the till
 
