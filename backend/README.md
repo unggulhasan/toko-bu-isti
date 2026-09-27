@@ -21,7 +21,7 @@ uv run python main.py                   # http://127.0.0.1:8000  (docs at /docs)
 
 | Key | Purpose |
 | --- | --- |
-| `DATABASE_URL` | `firebird+firebird://SYSDBA:masterkey@localhost:3050//abs/path/toko.fdb` — note the **doubled slash** before an absolute POSIX path |
+| `DATABASE_URL` | Absolute path after `host:port/`. **macOS/Linux:** `firebird+firebird://SYSDBA:masterkey@localhost:3050//abs/path/toko.fdb` — **doubled** slash, because SQLAlchemy's URL parser strips one and a POSIX absolute path already starts with `/`. **Windows:** `firebird+firebird://SYSDBA:masterkey@localhost:3050/C:/toko-bu-isti/backend/toko.fdb` — **single** slash, since a drive letter has no leading `/` of its own. Doubling it on Windows (`3050//C:/...`) leaves a stray leading slash in `url.database` (`/C:/...`) that the Firebird client can't resolve — every connection then fails with `unavailable database`, even though the port, credentials and file are all correct and `isql` connects fine with the same DSN. |
 | `CORS_ORIGINS` | Comma-separated. Must list every browser origin, including the client laptop's |
 | `API_HOST` / `API_PORT` | Bind address. `127.0.0.1` in dev; `0.0.0.0` in production — see Production |
 | `FB_CLIENT_LIBRARY` | Windows only, when `fbclient.dll` is kept off `PATH` |
