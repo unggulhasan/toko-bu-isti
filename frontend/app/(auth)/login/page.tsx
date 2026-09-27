@@ -69,7 +69,7 @@ export default function LoginPage() {
         </div>
         <div className="absolute right-7.5 bottom-7.5 flex flex-col items-end gap-1.5">
           <span className="rounded-sm bg-shell/72 px-3 py-1.5 font-serif text-[22px] text-shell-foreground italic">
-            Toko kami, Jl. Pelabuhan 7
+            Pasar Jrakah
           </span>
         </div>
       </div>

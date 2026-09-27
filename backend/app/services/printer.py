@@ -20,6 +20,7 @@ from ..config import STORE_TIMEZONE, settings
 from ..models import Transaction, TransactionStatus
 
 STORE_NAME = "TOKO BU ISTI"
+STORE_ADDRESS = "Pasar Jrakah"
 
 # The TM-U220D is a 76/69.5/57.5mm dot-matrix printer, not an 80mm thermal one --
 # there is no 80mm mode. At the shop's 76mm roll, Font A prints 35 columns per
@@ -97,6 +98,7 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
         # custom_size=True is required or width/height are silently ignored.
         printer.set(align="center", bold=True, custom_size=True, width=2, height=2)
         printer.text(f"{STORE_NAME}\n")
+        printer.text(f"{STORE_ADDRESS}\n")
         printer.set(align="center", bold=False, custom_size=True, width=1, height=1)
         if txn.status == TransactionStatus.voided:
             printer.set(align="center", bold=True)
@@ -105,7 +107,7 @@ def print_receipt(printer: Escpos, txn: Transaction) -> None:
 
         created_at = txn.created_at.replace(tzinfo=timezone.utc).astimezone(STORE_TIMEZONE)
         printer.text(f"#{txn.sale_number}\n")
-        printer.text(f"{created_at.strftime('%d-%m-%Y %H:%M')}  {txn.cashier_name}\n")
+        printer.text(f"{created_at.strftime('%d-%m-%Y %H:%M')}\n")
         printer.text("-" * LINE_WIDTH + "\n")
 
         printer.set(align="left")
