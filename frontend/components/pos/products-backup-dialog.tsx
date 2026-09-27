@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { ApiError } from "@/lib/api/client"
 import { exportProductsUrl } from "@/lib/api/products"
@@ -32,6 +33,8 @@ export function ProductsBackupDialog({
   const importProducts = useImportProducts()
   const [pending, setPending] = useState<ParsedBackup | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isReadingFile, setIsReadingFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
@@ -40,32 +43,42 @@ export function ProductsBackupDialog({
   }
 
   function handleExport() {
+    // window.open() returns once the download starts, not once it finishes,
+    // so this is a brief courtesy flash rather than a true completion signal
+    // -- there is no progress event for a plain browser-driven download.
+    setIsExporting(true)
     window.open(exportProductsUrl(), "_blank")
+    setTimeout(() => setIsExporting(false), 600)
   }
 
   async function handleFileSelected(file: File) {
     setError(null)
-    const fileText = await file.text()
-    let parsed: unknown
+    setIsReadingFile(true)
     try {
-      parsed = JSON.parse(fileText)
-    } catch {
-      setError("Berkas bukan JSON yang valid")
-      return
+      const fileText = await file.text()
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(fileText)
+      } catch {
+        setError("Berkas bukan JSON yang valid")
+        return
+      }
+      const envelope = parsed as { productCount?: unknown; exportedAt?: unknown }
+      if (
+        typeof envelope.productCount !== "number" ||
+        typeof envelope.exportedAt !== "string"
+      ) {
+        setError("Berkas tidak berisi format cadangan produk yang dikenali")
+        return
+      }
+      setPending({
+        fileText,
+        productCount: envelope.productCount,
+        exportedAt: envelope.exportedAt,
+      })
+    } finally {
+      setIsReadingFile(false)
     }
-    const envelope = parsed as { productCount?: unknown; exportedAt?: unknown }
-    if (
-      typeof envelope.productCount !== "number" ||
-      typeof envelope.exportedAt !== "string"
-    ) {
-      setError("Berkas tidak berisi format cadangan produk yang dikenali")
-      return
-    }
-    setPending({
-      fileText,
-      productCount: envelope.productCount,
-      exportedAt: envelope.exportedAt,
-    })
   }
 
   async function handleConfirmImport() {
@@ -93,6 +106,9 @@ export function ProductsBackupDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
+        // Ignore Escape/outside-click while a restore is in flight -- closing
+        // mid-request would desync the dialog from a mutation still running.
+        if (!next && importProducts.isPending) return
         onOpenChange(next)
         if (!next) reset()
       }}
@@ -106,7 +122,13 @@ export function ProductsBackupDialog({
           <p className="text-sm text-muted-foreground">
             Unduh seluruh katalog produk sebagai berkas cadangan.
           </p>
-          <Button type="button" variant="outline" onClick={handleExport}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isExporting}
+            onClick={handleExport}
+          >
+            {isExporting && <Spinner className="text-current" />}
             Cadangkan produk
           </Button>
         </div>
@@ -134,9 +156,11 @@ export function ProductsBackupDialog({
               <Button
                 type="button"
                 variant="outline"
+                disabled={isReadingFile}
                 onClick={() => fileInputRef.current?.click()}
               >
-                Pilih berkas cadangan…
+                {isReadingFile && <Spinner className="text-current" />}
+                {isReadingFile ? "Membaca berkas…" : "Pilih berkas cadangan…"}
               </Button>
             </>
           )}
@@ -160,7 +184,12 @@ export function ProductsBackupDialog({
         <DialogFooter>
           {pending ? (
             <>
-              <Button type="button" variant="outline" onClick={reset}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={importProducts.isPending}
+                onClick={reset}
+              >
                 Batal
               </Button>
               <Button
@@ -169,6 +198,7 @@ export function ProductsBackupDialog({
                 disabled={importProducts.isPending}
                 onClick={handleConfirmImport}
               >
+                {importProducts.isPending && <Spinner className="text-current" />}
                 {importProducts.isPending ? "Memulihkan…" : "Ya, ganti katalog"}
               </Button>
             </>
