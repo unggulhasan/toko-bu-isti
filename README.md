@@ -185,6 +185,8 @@ till afterwards — double-click `buka-kasir.bat` when ready.
   [frontend/README.md](frontend/README.md).
 - [buka-kasir.bat](buka-kasir.bat) / [tutup-kasir.bat](tutup-kasir.bat) — open/close
   the till on the server PC.
+- [stop-kasir.ps1](stop-kasir.ps1) — helper used by `tutup-kasir.bat` /
+  `perbarui-kasir.bat` to actually stop the backend/frontend processes.
 - [perbarui-kasir.bat](perbarui-kasir.bat) — rebuild backend/frontend after
   pulling code changes.
 - [backend/setup-database.bat](backend/setup-database.bat) — one-time database

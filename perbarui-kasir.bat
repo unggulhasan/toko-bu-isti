@@ -10,12 +10,7 @@ REM rebuilds the frontend. Run buka-kasir.bat afterwards to reopen the till.
 title Perbarui Kasir
 
 echo Menutup kasir sebelum memperbarui...
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do (
-    taskkill /pid %%p /t /f >nul 2>&1
-)
-for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do (
-    taskkill /pid %%p /t /f >nul 2>&1
-)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0stop-kasir.ps1"
 
 echo.
 echo Memperbarui backend...
