@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 
 import { AppShell } from "@/components/pos/app-shell"
 import { Toaster } from "@/components/ui/toast"
+import { useIdleLogout } from "@/lib/hooks/use-idle-logout"
 import { useSessionHydrated, useSessionStore } from "@/lib/store/session-store"
 
 export default function PosLayout({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,8 @@ export default function PosLayout({ children }: { children: React.ReactNode }) {
       router.replace("/login")
     }
   }, [hydrated, isLoggedIn, router])
+
+  useIdleLogout()
 
   if (!hydrated || !isLoggedIn) {
     return null
