@@ -18,6 +18,8 @@ import {
 } from "@/components/pos/products-table"
 import { ProductFormDialog } from "@/components/pos/product-form-dialog"
 import { ProductsBackupDialog } from "@/components/pos/products-backup-dialog"
+import { getProductByBarcode } from "@/lib/api/products"
+import { ApiError } from "@/lib/api/client"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { Product } from "@/lib/types"
 
@@ -96,6 +98,30 @@ export default function ProductsPage() {
     setDialogOpen(true)
   }
 
+  // A scanner types the barcode then fires Enter immediately -- faster than
+  // DEBOUNCE_MS, so `pageItems` (and the table's selection built from it)
+  // still reflects the *previous* query when Enter arrives. Resolve the
+  // scanned code directly against the backend instead of trusting the
+  // debounced list; fall back to table-selection activation for a normal
+  // name search where the list is already current.
+  async function handleActivate() {
+    const barcode = query.trim()
+    if (!barcode) {
+      tableRef.current?.activateSelection()
+      return
+    }
+    try {
+      const product = await getProductByBarcode(barcode)
+      openEditProduct(product)
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "PRODUCT_NOT_FOUND") {
+        tableRef.current?.activateSelection()
+        return
+      }
+      throw err
+    }
+  }
+
   return (
     <div className="px-6.5 py-6">
       <div className="mb-2 text-[12.5px] text-muted-foreground">
@@ -113,7 +139,7 @@ export default function ProductsPage() {
           onNewProduct={openNewProduct}
           onOpenBackup={() => setBackupDialogOpen(true)}
           onNavigate={(delta) => tableRef.current?.moveSelection(delta)}
-          onActivate={() => tableRef.current?.activateSelection()}
+          onActivate={handleActivate}
           onPageChange={(delta) =>
             setPage((p) => Math.min(Math.max(p + delta, 0), pageCount - 1))
           }
