@@ -2,18 +2,33 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+import json
+from datetime import datetime, timezone
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Query, Response, status
-from sqlalchemy import func, or_, select
+from fastapi import APIRouter, Body, Query, Response, status
+from pydantic import ValidationError
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from ..dependencies import CurrentCashier, DbSession
-from ..errors import barcode_taken, product_not_found
+from ..errors import (
+    barcode_taken,
+    import_invalid,
+    import_version_unsupported,
+    product_not_found,
+)
 from ..models import Product
 from ..schemas.common import Page, paginate
-from ..schemas.product import ProductCreate, ProductOut, ProductUpdate
+from ..schemas.product import (
+    ProductBackupFile,
+    ProductBackupRow,
+    ProductCreate,
+    ProductImportResult,
+    ProductOut,
+    ProductUpdate,
+)
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -108,6 +123,97 @@ def search_products(
         .limit(limit)
     ).all()
     return [ProductOut.model_validate(r) for r in rows]
+
+
+@router.get("/export")
+def export_products(db: DbSession) -> Response:
+    """Full lossless snapshot of every product, active and soft-deleted, as a
+    downloadable JSON file. No cashier auth -- read-only, same posture as
+    GET /transactions/report.
+    """
+    rows = db.scalars(select(Product).order_by(Product.barcode)).all()
+    payload = ProductBackupFile(
+        exported_at=datetime.now(timezone.utc),
+        product_count=len(rows),
+        products=[ProductBackupRow.model_validate(r) for r in rows],
+    )
+    body = payload.model_dump_json(by_alias=True, indent=2).encode("utf-8")
+    filename = f"produk-cadangan-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.json"
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/import", response_model=ProductImportResult)
+def import_products(
+    cashier: CurrentCashier,
+    db: DbSession,
+    body: Annotated[bytes, Body()],
+) -> ProductImportResult:
+    """Wholesale replace of the products table from a previously exported
+    backup file. Validated in full before any row is deleted; the delete and
+    the bulk insert happen in one transaction so a failure midway rolls back
+    to the pre-import state.
+
+    The request must NOT be sent with a `application/json` Content-Type: with
+    that header FastAPI parses the body as JSON before this parameter ever
+    sees it, handing a `dict` where a `bytes` was declared, and the request
+    fails with a 422 before this function runs. Send it as
+    `application/octet-stream` (or omit Content-Type) so FastAPI hands over
+    the raw, unparsed bytes instead -- this endpoint parses the JSON itself,
+    below, so it can distinguish "not JSON" from "valid JSON, wrong shape".
+    """
+    try:
+        data: Any = json.loads(body)
+    except ValueError as exc:
+        raise import_invalid([{"msg": f"JSON tidak valid: {exc}"}]) from exc
+
+    try:
+        backup = ProductBackupFile.model_validate(data)
+    except ValidationError as exc:
+        raise import_invalid(exc.errors()) from exc
+
+    if backup.format_version != 1:
+        raise import_version_unsupported(backup.format_version)
+
+    # Mirrors uq_products_barcode_live: catch a bad file in validation rather
+    # than let it surface as an opaque constraint violation mid-insert.
+    seen_active_barcodes: set[str] = set()
+    for row in backup.products:
+        if row.is_active:
+            if row.barcode in seen_active_barcodes:
+                raise import_invalid([{"msg": f"Barkode aktif ganda: {row.barcode}"}])
+            seen_active_barcodes.add(row.barcode)
+
+    try:
+        db.execute(delete(Product))
+        for row in backup.products:
+            db.add(
+                Product(
+                    id=row.id,
+                    barcode=row.barcode,
+                    name=row.name,
+                    price=row.price,
+                    is_active=row.is_active,
+                    # barcode_active intentionally left unset -- the
+                    # products_bi_bu trigger sets it BEFORE INSERT regardless
+                    # of insert path.
+                    updated_by=row.updated_by,
+                    created_at=row.created_at.replace(tzinfo=None),
+                    updated_at=row.updated_at.replace(tzinfo=None),
+                )
+            )
+        db.commit()
+    except DBAPIError:
+        db.rollback()
+        raise
+
+    active = sum(1 for r in backup.products if r.is_active)
+    return ProductImportResult(
+        imported=len(backup.products), active=active, inactive=len(backup.products) - active
+    )
 
 
 @router.post("", response_model=ProductOut, status_code=status.HTTP_201_CREATED)

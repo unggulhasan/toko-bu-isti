@@ -36,3 +36,33 @@ class ProductUpdate(CamelModel):
     barcode: Barcode | None = None
     name: ProductName | None = None
     price: int | None = Field(default=None, gt=0)
+
+
+class ProductBackupRow(CamelModel):
+    """One product row in a backup file. Superset of ProductOut: adds id,
+    isActive and createdAt so a restore is byte-for-byte faithful."""
+
+    id: str
+    barcode: Barcode
+    name: ProductName
+    price: int = Field(gt=0)
+    is_active: bool
+    updated_by: str
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+
+class ProductBackupFile(CamelModel):
+    """The whole export envelope. Versioned so a future format change can
+    reject an old file instead of guessing at its shape."""
+
+    format_version: int = 1
+    exported_at: UtcDateTime
+    product_count: int
+    products: list[ProductBackupRow]
+
+
+class ProductImportResult(CamelModel):
+    imported: int
+    active: int
+    inactive: int

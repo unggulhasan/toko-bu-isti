@@ -1,5 +1,5 @@
 import { qs, request } from "@/lib/api/client"
-import type { Page, Product, ProductInput } from "@/lib/types"
+import type { Page, Product, ProductImportResult, ProductInput } from "@/lib/types"
 
 export function listProducts(params: {
   q?: string
@@ -49,4 +49,19 @@ export function updateProduct(
 // No X-Cashier-Id -- documented asymmetry vs create/update (soft delete).
 export function deleteProduct(id: string): Promise<void> {
   return request(`/api/products/${id}`, { method: "DELETE" })
+}
+
+// Plain URL, opened via window.open -- mirrors reportUrl() in transactions.ts.
+export function exportProductsUrl(): string {
+  return "/api/products/export"
+}
+
+// `rawBody` sends the file's own JSON text verbatim -- it must not be
+// re-JSON.stringify'd, which `body` would do.
+export function importProducts(fileText: string): Promise<ProductImportResult> {
+  return request("/api/products/import", {
+    method: "POST",
+    rawBody: fileText,
+    withCashier: true,
+  })
 }

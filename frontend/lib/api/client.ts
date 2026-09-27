@@ -49,12 +49,22 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   // Opt-in per call, matching the backend's exact four guarded routes
   // (backend/app/dependencies.py) rather than injecting the header blanket.
   withCashier?: boolean
+  // Already-serialized JSON (e.g. a file's own contents being re-uploaded
+  // verbatim) -- sent as-is instead of through JSON.stringify(body).
+  rawBody?: string
 }
 
 function buildHeaders(opts: RequestOptions): Headers {
   const headers = new Headers(opts.headers)
   headers.set("Accept", "application/json")
-  if (opts.body !== undefined) headers.set("Content-Type", "application/json")
+  if (opts.rawBody !== undefined) {
+    // NOT application/json: the backend's raw-bytes Body() param only gets
+    // the unparsed request bytes when the content-type does not make FastAPI
+    // parse the body as JSON first (see products.import_products' docstring).
+    headers.set("Content-Type", "application/octet-stream")
+  } else if (opts.body !== undefined) {
+    headers.set("Content-Type", "application/json")
+  }
 
   if (opts.withCashier) {
     const cashierId = useSessionStore.getState().cashierId
@@ -122,7 +132,12 @@ export async function request<T>(
     res = await fetch(path, {
       ...opts,
       headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body:
+        opts.rawBody !== undefined
+          ? opts.rawBody
+          : opts.body !== undefined
+            ? JSON.stringify(opts.body)
+            : undefined,
     })
   } catch {
     throw new ApiError({

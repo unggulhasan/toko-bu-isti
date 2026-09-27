@@ -30,6 +30,12 @@ export type ProductInput = {
   price: number
 }
 
+export type ProductImportResult = {
+  imported: number
+  active: number
+  inactive: number
+}
+
 export type SaleLine = {
   id: string
   // Nullable: the FK is ON DELETE SET NULL, so a line survives its catalog

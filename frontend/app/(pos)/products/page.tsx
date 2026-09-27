@@ -17,6 +17,7 @@ import {
   type ProductsTableHandle,
 } from "@/components/pos/products-table"
 import { ProductFormDialog } from "@/components/pos/product-form-dialog"
+import { ProductsBackupDialog } from "@/components/pos/products-backup-dialog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { Product } from "@/lib/types"
 
@@ -64,6 +65,7 @@ export default function ProductsPage() {
   const [page, setPage] = useState(0)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
+  const [backupDialogOpen, setBackupDialogOpen] = useState(false)
   const tableRef = useRef<ProductsTableHandle>(null)
 
   useEffect(() => {
@@ -109,6 +111,7 @@ export default function ProductsPage() {
             setPage(0)
           }}
           onNewProduct={openNewProduct}
+          onOpenBackup={() => setBackupDialogOpen(true)}
           onNavigate={(delta) => tableRef.current?.moveSelection(delta)}
           onActivate={() => tableRef.current?.activateSelection()}
           onPageChange={(delta) =>
@@ -175,6 +178,10 @@ export default function ProductsPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         product={editingProduct}
+      />
+      <ProductsBackupDialog
+        open={backupDialogOpen}
+        onOpenChange={setBackupDialogOpen}
       />
     </div>
   )

@@ -11,12 +11,17 @@ import {
 } from "@/components/ui/input-group"
 import { cn } from "@/lib/utils"
 
-const COMMAND_ALIAS = "baru"
+type Command = {
+  alias: string
+  label: string
+  run: () => void
+}
 
 export function ProductSearchBar({
   query,
   onQueryChange,
   onNewProduct,
+  onOpenBackup,
   onNavigate,
   onActivate,
   onPageChange,
@@ -24,20 +29,31 @@ export function ProductSearchBar({
   query: string
   onQueryChange: (value: string) => void
   onNewProduct: () => void
+  onOpenBackup: () => void
   onNavigate?: (delta: number) => void
   onActivate?: () => void
   onPageChange?: (delta: number) => void
 }) {
   const [commandError, setCommandError] = useState<string | null>(null)
+  const [highlighted, setHighlighted] = useState(0)
 
-  const isCommandMode = query.startsWith("/")
-  const commandMatches = isCommandMode && COMMAND_ALIAS.startsWith(query.slice(1))
-
-  function runNewProductCommand() {
+  function runCommand(run: () => void) {
     onQueryChange("")
     setCommandError(null)
-    onNewProduct()
+    run()
   }
+
+  const commands: Command[] = [
+    { alias: "baru", label: "Buat produk baru", run: () => runCommand(onNewProduct) },
+    { alias: "cadangan", label: "Cadangkan / pulihkan produk", run: () => runCommand(onOpenBackup) },
+  ]
+
+  const isCommandMode = query.startsWith("/")
+  const needle = query.slice(1).toLowerCase()
+  const commandMatches = isCommandMode
+    ? commands.filter((c) => c.alias.startsWith(needle))
+    : []
+  const activeIndex = Math.min(highlighted, Math.max(commandMatches.length - 1, 0))
 
   return (
     <div className="flex w-full gap-2.5">
@@ -58,13 +74,30 @@ export function ProductSearchBar({
             onChange={(e) => {
               onQueryChange(e.target.value)
               setCommandError(null)
+              setHighlighted(0)
             }}
             onKeyDown={(e) => {
               if (isCommandMode) {
+                if (e.key === "ArrowDown") {
+                  e.preventDefault()
+                  if (commandMatches.length > 0) {
+                    setHighlighted((i) => (i + 1) % commandMatches.length)
+                  }
+                  return
+                }
+                if (e.key === "ArrowUp") {
+                  e.preventDefault()
+                  if (commandMatches.length > 0) {
+                    setHighlighted(
+                      (i) => (i - 1 + commandMatches.length) % commandMatches.length
+                    )
+                  }
+                  return
+                }
                 if (e.key === "Enter") {
                   e.preventDefault()
-                  if (commandMatches) {
-                    runNewProductCommand()
+                  if (commandMatches.length > 0) {
+                    commandMatches[activeIndex].run()
                   } else {
                     setCommandError("Tidak ditemukan")
                   }
@@ -76,6 +109,7 @@ export function ProductSearchBar({
                   setCommandError(null)
                   return
                 }
+                return
               }
               if (e.key === "ArrowDown") {
                 e.preventDefault()
@@ -100,21 +134,28 @@ export function ProductSearchBar({
             <span className="text-xs text-muted-foreground">
               {commandError ??
                 (isCommandMode
-                  ? "/baru produk baru · Enter jalankan"
+                  ? "↑↓ pilih · Enter jalankan"
                   : "/ untuk perintah · ↑↓ pilih · Enter jalankan · ,. halaman")}
             </span>
           </InputGroupAddon>
         </InputGroup>
-        {isCommandMode && commandMatches && (
+        {isCommandMode && commandMatches.length > 0 && (
           <div className="absolute top-full right-0 left-0 z-20 mt-1.5 overflow-hidden rounded-none border border-border bg-card shadow-md">
-            <button
-              type="button"
-              onClick={runNewProductCommand}
-              className="flex w-full items-center justify-between gap-3 bg-primary/8 px-4 py-2.5 text-left"
-            >
-              <span className="text-[13.5px] text-foreground">/{COMMAND_ALIAS}</span>
-              <span className="text-xs text-muted-foreground">Buat produk baru</span>
-            </button>
+            {commandMatches.map((c, i) => (
+              <button
+                key={c.alias}
+                type="button"
+                onClick={c.run}
+                onMouseEnter={() => setHighlighted(i)}
+                className={cn(
+                  "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left",
+                  i === activeIndex ? "bg-primary/8" : "bg-card"
+                )}
+              >
+                <span className="text-[13.5px] text-foreground">/{c.alias}</span>
+                <span className="text-xs text-muted-foreground">{c.label}</span>
+              </button>
+            ))}
           </div>
         )}
       </div>

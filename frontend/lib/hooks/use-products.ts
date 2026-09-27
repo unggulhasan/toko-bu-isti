@@ -57,3 +57,11 @@ export function useDeleteProduct() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
   })
 }
+
+export function useImportProducts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (fileText: string) => api.importProducts(fileText),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
+  })
+}

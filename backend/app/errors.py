@@ -71,3 +71,15 @@ def already_voided() -> HTTPException:
 
 def printer_unavailable() -> HTTPException:
     return api_error(503, "PRINTER_UNAVAILABLE", "Tidak dapat menghubungi printer")
+
+
+def import_invalid(errors: list[dict[str, Any]]) -> HTTPException:
+    return api_error(422, "IMPORT_INVALID", "Berkas cadangan tidak valid", errors=errors)
+
+
+def import_version_unsupported(version: int) -> HTTPException:
+    return api_error(
+        400,
+        "IMPORT_VERSION_UNSUPPORTED",
+        f"Versi berkas cadangan ({version}) tidak didukung",
+    )
