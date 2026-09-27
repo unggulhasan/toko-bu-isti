@@ -156,7 +156,7 @@ export function ProductFormDialog({
               id="name"
               ref={nameRef}
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
               onKeyDown={(e) => focusNext(e, priceRef.current)}
               className="text-[15px] normal-case"
             />

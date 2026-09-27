@@ -200,7 +200,7 @@ def import_products(
                 Product(
                     id=row.id,
                     barcode=row.barcode,
-                    name=row.name,
+                    name=row.name.upper(),
                     price=row.price,
                     is_active=row.is_active,
                     # barcode_active intentionally left unset -- the
