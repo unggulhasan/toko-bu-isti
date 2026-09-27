@@ -44,6 +44,13 @@ def _containing(column, needle: str):
     return column.op("CONTAINING")(needle)
 
 
+def _tokens(q: str) -> list[str]:
+    """Split a search query into words so "djarum slop" matches "djarum 12
+    slop" -- a single CONTAINING(q) would require that exact contiguous
+    substring, which a word in between defeats."""
+    return q.split()
+
+
 def _is_barcode_conflict(exc: DBAPIError) -> bool:
     """Recognize a uq_products_barcode_live violation.
 
@@ -72,10 +79,9 @@ def list_products(
     if not include_inactive:
         filters.append(Product.is_active)
     if q:
-        needle = q.strip()
-        if needle:
+        for token in _tokens(q):
             filters.append(
-                or_(_containing(Product.name, needle), _containing(Product.barcode, needle))
+                or_(_containing(Product.name, token), _containing(Product.barcode, token))
             )
 
     total = db.scalar(select(func.count()).select_from(Product).where(*filters)) or 0
@@ -118,7 +124,7 @@ def search_products(
     Default limit 10 matches its MAX_RESULTS."""
     rows = db.scalars(
         select(Product)
-        .where(Product.is_active, _containing(Product.name, q.strip()))
+        .where(Product.is_active, *[_containing(Product.name, t) for t in _tokens(q)])
         .order_by(Product.name)
         .limit(limit)
     ).all()
