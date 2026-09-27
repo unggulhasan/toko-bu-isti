@@ -169,11 +169,12 @@ When the code changes, on the server PC:
 
 ```powershell
 git pull
-cd backend  && uv sync
-cd ..\frontend && npm install && npm run build
 ```
 
-Then close and reopen the till (`tutup-kasir.bat` then `buka-kasir.bat`).
+Then double-click **[perbarui-kasir.bat](perbarui-kasir.bat)**. It closes the
+till if it's open, then runs `uv sync` (backend) and `npm install && npm run
+build` (frontend). It does not run `git pull` itself, and doesn't reopen the
+till afterwards — double-click `buka-kasir.bat` when ready.
 
 ## Project layout
 
@@ -184,6 +185,8 @@ Then close and reopen the till (`tutup-kasir.bat` then `buka-kasir.bat`).
   [frontend/README.md](frontend/README.md).
 - [buka-kasir.bat](buka-kasir.bat) / [tutup-kasir.bat](tutup-kasir.bat) — open/close
   the till on the server PC.
+- [perbarui-kasir.bat](perbarui-kasir.bat) — rebuild backend/frontend after
+  pulling code changes.
 - [backend/setup-database.bat](backend/setup-database.bat) — one-time database
   creation on a fresh server PC.
 

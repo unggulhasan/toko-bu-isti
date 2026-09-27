@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { preload } from "react-dom"
 import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -16,11 +17,19 @@ import { ApiError } from "@/lib/api/client"
 import { useLogin } from "@/lib/hooks/use-auth"
 import { useSessionHydrated, useSessionStore } from "@/lib/store/session-store"
 
+// Inlined 24px-wide JPEG (~1KB) of login-bg.jpg, shown blurred behind the
+// full-resolution image while it loads over the LAN link to the client PC.
+const LOGIN_BG_BLUR_DATA_URL =
+  "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/4QBMRXhpZgAATU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAGKADAAQAAAABAAAAEgAAAAD/7QA4UGhvdG9zaG9wIDMuMAA4QklNBAQAAAAAAAA4QklNBCUAAAAAABDUHYzZjwCyBOmACZjs+EJ+/8AAEQgAEgAYAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJicoKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uLj5OXm5+jp6vLz9PX29/j5+v/bAEMACQkJCQkJEAkJEBYQEBAWHhYWFhYeJh4eHh4eJi4mJiYmJiYuLi4uLi4uLjc3Nzc3N0BAQEBASEhISEhISEhISP/bAEMBCwwMEhESHxERH0szKjNLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS//dAAQAAv/aAAwDAQACEQMRAD8Anl1EPIsE0cT+X8xUfxfUg8jnioZggQKiqF6kjHBY4C8+gqzHJPDAY1jjIBCMQvzFsDg+o4p5Fw8bgRggnLBRzz2Hatua1knZXM3BO/MnzW6kNnepZh4fl56hl3Fc+nIx9Kt/2nbf3v8AyH/9lWUbcMzbcCQ8kN1GcAYP6U37Bc+i/wDfQ/xq17J61LXM+WstKadj/9De0zi6u1HA89+PwFNtSRNNg/wKfxyadpv/AB+Xf/Xd/wCQplt/rpv9xf5muSp19V+hrT+CP9dxkEkjwRl2Jygzk9eKftX0FQ23+oi/3F/lU9Jbswe7P//Z"
+
+preload("/login-bg.jpg", { as: "image", fetchPriority: "high" })
+
 export default function LoginPage() {
   const router = useRouter()
   const [now, setNow] = useState(() => new Date())
   const [password, setPassword] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [bgLoaded, setBgLoaded] = useState(false)
   const hydrated = useSessionHydrated()
   const isLoggedIn = useSessionStore((state) => state.isLoggedIn)
   const setSession = useSessionStore((state) => state.setSession)
@@ -55,10 +64,24 @@ export default function LoginPage() {
 
   return (
     <div className="flex h-svh bg-shell">
-      <div className="relative min-w-0 flex-[1.35]">
+      <div className="relative min-w-0 flex-[1.35] overflow-hidden">
         <div
-          className="absolute inset-0 bg-shell bg-cover bg-center"
-          style={{ backgroundImage: "url(/login-bg.jpg)" }}
+          className="absolute inset-0 scale-110 bg-shell bg-cover bg-center blur-xl"
+          style={{ backgroundImage: `url(${LOGIN_BG_BLUR_DATA_URL})` }}
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element -- fixed static asset, not an optimized/responsive image */}
+        <img
+          src="/login-bg.jpg"
+          alt=""
+          fetchPriority="high"
+          decoding="async"
+          ref={(node) => {
+            if (node?.complete) setBgLoaded(true)
+          }}
+          onLoad={() => setBgLoaded(true)}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+            bgLoaded ? "opacity-100" : "opacity-0"
+          }`}
         />
         <div className="absolute inset-0 bg-shell/35" />
         <div className="absolute inset-x-0 top-0 flex items-center gap-3 bg-linear-to-b from-shell/55 to-transparent px-7.5 py-6.5">
