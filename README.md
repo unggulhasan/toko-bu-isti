@@ -71,12 +71,18 @@ copy .env.example .env
 Edit `.env`:
 
 - `DATABASE_URL` — set the path to where the `.fdb` file should live, e.g.
-  `firebird+firebird://SYSDBA:masterkey@localhost:3050/C:/toko-bu-isti/backend/toko.fdb`
+  `firebird+firebird://SYSDBA:masterkey@127.0.0.1:3050/C:/toko-bu-isti/backend/toko.fdb`
   (note the **single** slash before the drive letter — a Windows path has no
   leading `/` of its own, unlike a POSIX absolute path. Doubling it here, as on
   macOS/Linux, leaves a stray leading slash in the parsed path (`/C:/...`) that
   the Firebird client can't resolve, and every connection then fails with
-  `unavailable database` even though the port, credentials and file are correct).
+  `unavailable database` even though the port, credentials and file are correct.
+  Use the literal `127.0.0.1`, not `localhost` — on this topology the server PC
+  has no LAN beyond the direct client-PC cable, so WiFi is normally off, and at
+  least one shop install had `localhost` resolve to the IPv6 loopback `::1`
+  instead once WiFi was disabled, with nothing listening there — every attach
+  then failed with "Failed to locate host machine" even though Firebird itself
+  was running fine).
 - `PRINTER_BACKEND=usb` — switches from the dev network-printer emulator to the
   real USB-attached TM-U220D.
 - Leave `CORS_ORIGINS`, `API_HOST`, `API_PORT` at their defaults — see the
