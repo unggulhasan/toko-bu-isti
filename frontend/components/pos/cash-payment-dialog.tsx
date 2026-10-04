@@ -20,6 +20,11 @@ import { useActiveSale } from "@/lib/hooks/use-active-sale"
 import { usePrintTransaction, useCheckout } from "@/lib/hooks/use-transactions"
 import { useSessionStore } from "@/lib/store/session-store"
 import { toast } from "@/components/ui/toast"
+import { cn } from "@/lib/utils"
+
+// Pulsing amber halo for the dialog's buttons when focused (see globals.css).
+const FOCUS_PULSE =
+  "focus:animate-focus-pulse focus:[--focus-pulse-color:var(--color-amber-300)] motion-reduce:focus:animate-none motion-reduce:focus:[box-shadow:0_0_0_5px_var(--color-amber-300)]"
 
 // What the dialog keeps showing after checkout: the open sale is consumed by
 // the server, so the live active sale is already a different (empty) cart.
@@ -250,7 +255,10 @@ export function CashPaymentDialog({
                   ref={reprintRef}
                   type="button"
                   onClick={handleReprint}
-                  className="h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90"
+                  className={cn(
+                    "h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90",
+                    FOCUS_PULSE
+                  )}
                 >
                   {printTransaction.isPending ? "Mencetak…" : "Cetak Ulang"}
                 </Button>
@@ -258,7 +266,10 @@ export function CashPaymentDialog({
                   type="button"
                   variant="outline"
                   onClick={handleClose}
-                  className="h-auto w-full border-primary-foreground/40 py-4.5 text-base text-primary-foreground normal-case hover:bg-primary-foreground/10 hover:text-primary-foreground"
+                  className={cn(
+                    "h-auto w-full border-primary-foreground/40 py-4.5 text-base text-primary-foreground normal-case hover:bg-primary-foreground/10 hover:text-primary-foreground",
+                    FOCUS_PULSE
+                  )}
                 >
                   Tutup
                 </Button>
@@ -268,7 +279,10 @@ export function CashPaymentDialog({
                 type="button"
                 disabled={!canConfirm}
                 onClick={handleConfirm}
-                className="mt-6 h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90"
+                className={cn(
+                  "mt-6 h-auto w-full bg-card py-4.5 text-base text-primary normal-case hover:bg-card/90",
+                  FOCUS_PULSE
+                )}
               >
                 {checkout.isPending ? "Memproses…" : "Konfirmasi & Cetak Struk"}
               </Button>
