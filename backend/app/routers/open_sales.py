@@ -1,8 +1,11 @@
 """Parked carts. Replaces the pos:open-sales localStorage slice.
 
-There is one set of carts for the shop, not per terminal (spec 1.6) -- so a cart
-parked on the server laptop can be resumed on the client laptop, which the
-localStorage version could not do.
+Carts are stored server-side but scoped to the cashier who created them (the
+X-Cashier-Id header), so two registers signed in as different cashiers each see
+only their own. A cart parked on the server laptop can still be resumed on the
+client laptop by signing in with the same PIN, which the localStorage version
+could not do. Every route takes CurrentCashier; a cart owned by someone else is
+reported as not found rather than forbidden, so ids reveal nothing.
 
 All routes are `def`, never `async def` (spec 2.0).
 """
@@ -15,9 +18,9 @@ from fastapi import APIRouter, Response, status
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, selectinload
 
-from ..dependencies import DbSession
+from ..dependencies import CurrentCashier, DbSession
 from ..errors import line_not_found, open_sale_not_found, product_not_found
-from ..models import OpenSale, OpenSaleLine, Product
+from ..models import Cashier, OpenSale, OpenSaleLine, Product
 from ..schemas.sale import (
     OpenSaleList,
     OpenSaleOut,
@@ -52,9 +55,11 @@ _MERGE_LINE = text(
 )
 
 
-def _load_sale(db: Session, sale_id: str) -> OpenSale:
+def _load_sale(db: Session, sale_id: str, cashier: Cashier) -> OpenSale:
     sale = db.scalar(
-        select(OpenSale).options(selectinload(OpenSale.lines)).where(OpenSale.id == sale_id)
+        select(OpenSale)
+        .options(selectinload(OpenSale.lines))
+        .where(OpenSale.id == sale_id, OpenSale.cashier_id == cashier.id)
     )
     if sale is None:
         raise open_sale_not_found()
@@ -66,8 +71,8 @@ def _out(sale: OpenSale) -> OpenSaleOut:
 
 
 @router.get("", response_model=OpenSaleList)
-def list_open_sales(db: DbSession) -> OpenSaleList:
-    """All parked carts, ordered by position.
+def list_open_sales(db: DbSession, cashier: CurrentCashier) -> OpenSaleList:
+    """The signed-in cashier's parked carts, ordered by position.
 
     Returns an empty list when there are none -- a GET must not create rows. The
     frontend assumes at least one active sale exists, but a side-effecting GET
@@ -75,39 +80,49 @@ def list_open_sales(db: DbSession) -> OpenSaleList:
     spawn stray carts. The frontend calls POST when it receives an empty list.
     """
     sales = db.scalars(
-        select(OpenSale).options(selectinload(OpenSale.lines)).order_by(OpenSale.position)
+        select(OpenSale)
+        .options(selectinload(OpenSale.lines))
+        .where(OpenSale.cashier_id == cashier.id)
+        .order_by(OpenSale.position)
     ).all()
     return OpenSaleList(items=[_out(s) for s in sales])
 
 
 @router.post("", response_model=OpenSaleOut, status_code=status.HTTP_201_CREATED)
-def create_open_sale(db: DbSession) -> OpenSaleOut:
-    """New empty cart, appended after the current last position."""
-    next_position = (db.scalar(select(func.max(OpenSale.position))) or -1) + 1
-    sale = OpenSale(position=next_position)
+def create_open_sale(db: DbSession, cashier: CurrentCashier) -> OpenSaleOut:
+    """New empty cart for this cashier, appended after their current last position."""
+    next_position = (
+        db.scalar(
+            select(func.max(OpenSale.position)).where(OpenSale.cashier_id == cashier.id)
+        )
+        or -1
+    ) + 1
+    sale = OpenSale(position=next_position, cashier_id=cashier.id)
     db.add(sale)
     db.commit()
-    return _out(_load_sale(db, sale.id))
+    return _out(_load_sale(db, sale.id, cashier))
 
 
 @router.get("/{sale_id}", response_model=OpenSaleOut)
-def get_open_sale(sale_id: str, db: DbSession) -> OpenSaleOut:
-    return _out(_load_sale(db, sale_id))
+def get_open_sale(sale_id: str, db: DbSession, cashier: CurrentCashier) -> OpenSaleOut:
+    return _out(_load_sale(db, sale_id, cashier))
 
 
 @router.delete("/{sale_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_open_sale(sale_id: str, db: DbSession) -> Response:
+def delete_open_sale(sale_id: str, db: DbSession, cashier: CurrentCashier) -> Response:
     """Discard a cart. 204 with an empty body -- no replacement cart is returned:
     204 forbids a body, and auto-creating a replacement would make DELETE
     non-idempotent. The frontend creates the next cart explicitly."""
-    sale = _load_sale(db, sale_id)
+    sale = _load_sale(db, sale_id, cashier)
     db.delete(sale)  # lines go via ON DELETE CASCADE / delete-orphan
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{sale_id}/scan", response_model=ScanResponse)
-def scan_into_sale(sale_id: str, body: ScanRequest, db: DbSession) -> ScanResponse:
+def scan_into_sale(
+    sale_id: str, body: ScanRequest, db: DbSession, cashier: CurrentCashier
+) -> ScanResponse:
     """Scan a barcode into the cart.
 
     Found and already in the cart -> increment that line's qty. Found and new ->
@@ -118,7 +133,8 @@ def scan_into_sale(sale_id: str, body: ScanRequest, db: DbSession) -> ScanRespon
     changes while a cart is parked, the parked line keeps the old price. That is
     the intent, though it means a cart parked for days sells at a stale price.
     """
-    sale = _load_sale(db, sale_id)
+    # Ownership check only; the merge below addresses the cart by id.
+    _load_sale(db, sale_id, cashier)
     barcode = body.barcode.strip()
 
     product = db.scalar(select(Product).where(Product.barcode == barcode, Product.is_active))
@@ -162,7 +178,7 @@ def scan_into_sale(sale_id: str, body: ScanRequest, db: DbSession) -> ScanRespon
 
     db.expire_all()
     return ScanResponse(
-        sale=_out(_load_sale(db, sale_id)),
+        sale=_out(_load_sale(db, sale_id, cashier)),
         scanned_line_id=str(outcome["line_id"]),
         created=bool(outcome["created"]),
     )
@@ -170,7 +186,11 @@ def scan_into_sale(sale_id: str, body: ScanRequest, db: DbSession) -> ScanRespon
 
 @router.patch("/{sale_id}/lines/{line_id}", response_model=OpenSaleOut)
 def set_line_qty(
-    sale_id: str, line_id: str, body: SetQtyRequest, db: DbSession
+    sale_id: str,
+    line_id: str,
+    body: SetQtyRequest,
+    db: DbSession,
+    cashier: CurrentCashier,
 ) -> OpenSaleOut:
     """Set a line's qty. qty <= 0 DELETEs the line rather than clamping to 0, which
     matches setLineQty and keeps this consistent with ck_osl_qty_positive."""
@@ -178,7 +198,7 @@ def set_line_qty(
     def _set() -> None:
         # Re-read inside the closure: with_retry re-runs this from scratch after a
         # rollback, and the line fetched before a lost contention race is stale.
-        sale = _load_sale(db, sale_id)
+        sale = _load_sale(db, sale_id, cashier)
         line = _find_line(sale, line_id)
 
         if body.qty <= 0:
@@ -190,20 +210,22 @@ def set_line_qty(
     with_retry(_set, db)
 
     db.expire_all()
-    return _out(_load_sale(db, sale_id))
+    return _out(_load_sale(db, sale_id, cashier))
 
 
 @router.delete("/{sale_id}/lines/{line_id}", response_model=OpenSaleOut)
-def remove_line(sale_id: str, line_id: str, db: DbSession) -> OpenSaleOut:
+def remove_line(
+    sale_id: str, line_id: str, db: DbSession, cashier: CurrentCashier
+) -> OpenSaleOut:
     def _remove() -> None:
-        sale = _load_sale(db, sale_id)
+        sale = _load_sale(db, sale_id, cashier)
         db.delete(_find_line(sale, line_id))
         db.commit()
 
     with_retry(_remove, db)
 
     db.expire_all()
-    return _out(_load_sale(db, sale_id))
+    return _out(_load_sale(db, sale_id, cashier))
 
 
 def _find_line(sale: OpenSale, line_id: str) -> OpenSaleLine:

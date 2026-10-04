@@ -11,7 +11,9 @@ export const queryKeys = {
   },
   openSales: {
     all: ["open-sales"] as const,
-    list: () => ["open-sales", "list"] as const,
+    // Keyed by cashier: carts are per cashier on the server, so another
+    // cashier's cached list must never be served after switching users.
+    list: (cashierId: string) => ["open-sales", "list", cashierId] as const,
   },
   transactions: {
     all: ["transactions"] as const,

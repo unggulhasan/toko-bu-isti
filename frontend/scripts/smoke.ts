@@ -40,6 +40,10 @@ async function check(name: string, fn: () => Promise<void>) {
 
 type FetchResult = { status: number; body: unknown; raw: Response }
 
+// Set after login. /api/open-sales routes are scoped to the signed-in cashier,
+// so call() attaches X-Cashier-Id to them the way the frontend client does.
+let openSalesCashierId = ""
+
 async function call(
   path: string,
   init?: RequestInit & { headers?: Record<string, string> }
@@ -49,6 +53,9 @@ async function call(
     headers: {
       Accept: "application/json",
       ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(openSalesCashierId && path.startsWith("/api/open-sales")
+        ? { "X-Cashier-Id": openSalesCashierId }
+        : {}),
       ...init?.headers,
     },
   })
@@ -102,6 +109,7 @@ async function main() {
       `expected "Kasir 1", got ${cashier.name}`
     )
     cashierId = cashier.id as string
+    openSalesCashierId = cashierId
   })
 
   await check("POST /api/auth/login (invalid PIN)", async () => {

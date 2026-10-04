@@ -12,16 +12,30 @@ the event loop -- and the symptom is diffuse slowness, not an error (spec 2.0).
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.migrations import migrate
 from app.routers import auth, open_sales, products, transactions
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Runs once at startup, before any request. Blocking DB work is fine here --
+    # the event loop has nothing else to serve yet; the sync-routes rule above is
+    # about request handlers.
+    migrate()
+    yield
+
 
 app = FastAPI(
     title="Toko Bu Isti POS API",
     version="0.1.0",
     description="Backend for a single-store, keyboard-first kasir.",
+    lifespan=lifespan,
 )
 
 # The frontend calls this API from the browser, so the Next.js origin must be

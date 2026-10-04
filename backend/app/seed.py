@@ -21,6 +21,7 @@ from pathlib import Path
 from sqlalchemy import delete, func, select, text
 
 from .database import SessionLocal, engine
+from .migrations import migrate
 from .models import (
     Cashier,
     OpenSale,
@@ -164,6 +165,10 @@ def main() -> int:
     ap.add_argument("--reset", action="store_true", help="delete existing rows first")
     args = ap.parse_args()
 
+    # Seeding a database that predates a schema change would fail on the missing
+    # column; the API server normally applies this at startup.
+    migrate()
+
     db = SessionLocal()
     try:
         if args.reset:
@@ -179,8 +184,11 @@ def main() -> int:
             return 1
 
         # Cashiers. The cashiers_bi_bu trigger fills pin_active.
+        cashiers: list[Cashier] = []
         for pin, name in CASHIERS:
-            db.add(Cashier(id=_uuid(), name=name, pin=pin, is_active=True, pin_active=pin))
+            cashier = Cashier(id=_uuid(), name=name, pin=pin, is_active=True, pin_active=pin)
+            cashiers.append(cashier)
+            db.add(cashier)
 
         # Products. Real UUIDs, not the fixtures' `p-<barcode>` ids: the column is
         # CHAR(36) CHARACTER SET OCTETS, so a 13-char id would be space-padded to 36
@@ -266,9 +274,10 @@ def main() -> int:
                     )
                 )
 
-        # Open carts. Shop-wide, not per terminal (spec 1.6).
+        # Open carts, all owned by the first cashier (PIN 1234 -- the one the smoke
+        # test signs in as). Carts are per cashier, so PIN 7890 starts empty.
         for position, lines in enumerate(OPEN_SALES):
-            sale = OpenSale(id=_uuid(), position=position)
+            sale = OpenSale(id=_uuid(), position=position, cashier_id=cashiers[0].id)
             db.add(sale)
             db.flush()
             for pos, (barcode, qty) in enumerate(lines):

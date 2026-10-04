@@ -29,10 +29,11 @@ def commit_sale(db: Session, open_sale_id: str, tendered: int, cashier: Cashier)
         sale = db.scalar(
             select(OpenSale)
             .options(selectinload(OpenSale.lines))
-            .where(OpenSale.id == open_sale_id)
+            .where(OpenSale.id == open_sale_id, OpenSale.cashier_id == cashier.id)
         )
         if sale is None:
-            # Already committed or discarded.
+            # Already committed or discarded -- or another cashier's cart, which
+            # must be indistinguishable from a missing one.
             raise open_sale_not_found()
         if not sale.lines:
             # The UI disables pay on an empty cart, but enforce it here too.

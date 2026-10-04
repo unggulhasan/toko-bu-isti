@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import * as api from "@/lib/api/open-sales"
 import { queryKeys } from "@/lib/api/query-keys"
 import { usePosUiStore } from "@/lib/store/pos-ui-store"
+import { useSessionStore } from "@/lib/store/session-store"
 import type { OpenSale } from "@/lib/types"
 
 /** Passive read of the open-sales list. Does not bootstrap -- safe to mount
@@ -11,10 +12,12 @@ import type { OpenSale } from "@/lib/types"
  * etc). See useOpenSales() below for the one component that also creates a
  * cart when the list is empty. */
 export function useOpenSalesQuery() {
+  const cashierId = useSessionStore((s) => s.cashierId)
   return useQuery({
-    queryKey: queryKeys.openSales.list(),
+    queryKey: queryKeys.openSales.list(cashierId),
     queryFn: api.listOpenSales,
     select: (data) => data.items,
+    enabled: Boolean(cashierId),
   })
 }
 
@@ -48,12 +51,18 @@ export function useOpenSales() {
   return query
 }
 
+// Read at call time, not render time: mutation callbacks can outlive the render
+// that created them, and must write to the list of whoever is signed in now.
+function currentListKey() {
+  return queryKeys.openSales.list(useSessionStore.getState().cashierId)
+}
+
 function replaceSaleInCache(
   qc: ReturnType<typeof useQueryClient>,
   sale: OpenSale
 ) {
   qc.setQueryData(
-    queryKeys.openSales.list(),
+    currentListKey(),
     (old: { items: OpenSale[] } | undefined) => {
       if (!old) return old
       const exists = old.items.some((s) => s.id === sale.id)
@@ -85,11 +94,9 @@ export function useDeleteOpenSale() {
   return useMutation({
     mutationFn: (id: string) => api.deleteOpenSale(id),
     onSuccess: (_void, deletedId) => {
-      const current = qc.getQueryData<{ items: OpenSale[] }>(
-        queryKeys.openSales.list()
-      )
+      const current = qc.getQueryData<{ items: OpenSale[] }>(currentListKey())
       const remaining = (current?.items ?? []).filter((s) => s.id !== deletedId)
-      qc.setQueryData(queryKeys.openSales.list(), { items: remaining })
+      qc.setQueryData(currentListKey(), { items: remaining })
       // 204 returns no replacement cart -- pick the next one, or bootstrap a
       // fresh one if that was the last, in this one place rather than at
       // every call site.

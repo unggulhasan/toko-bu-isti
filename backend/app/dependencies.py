@@ -26,12 +26,13 @@ def current_cashier(
     it out of access logs and off every route signature.
 
     This is the ONLY request-context header -- there is no register or terminal
-    equivalent, because nothing is scoped that way (spec 1.6).
+    equivalent. Open-sale carts are scoped by this cashier instead, so two
+    registers signed in as different cashiers do not see each other's carts.
 
-    Applied to exactly four routes: POST /products, PATCH /products/{id},
-    POST /transactions, POST /transactions/{id}/void. Deliberately not global --
-    everything else needs no actor, and a global dependency would make every GET
-    fail without the header.
+    Applied to POST /products, PATCH /products/{id}, POST /transactions,
+    POST /transactions/{id}/void and every /open-sales route. Deliberately not
+    global -- the rest (catalog reads, login) need no actor, and a global
+    dependency would make every GET fail without the header.
     """
     cashier = db.scalar(
         select(Cashier).where(Cashier.id == x_cashier_id, Cashier.is_active)

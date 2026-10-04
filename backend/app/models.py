@@ -119,12 +119,21 @@ class Product(Base, TimestampMixin):
 
 
 class OpenSale(Base, TimestampMixin):
-    """A parked, unpaid cart. Several are open at once, shop-wide -- so a cart
-    parked on one laptop is resumable on the other (spec 1.6)."""
+    """A parked, unpaid cart. Several are open at once, but each belongs to the
+    cashier who created it -- two registers signed in as different cashiers must
+    not see (or scan into) each other's carts. A cart is still resumable on any
+    machine by logging in with the same PIN."""
 
     __tablename__ = "open_sales"
 
     id: Mapped[str] = mapped_column(UUIDStr, primary_key=True, default=_uuid)
+    # Nullable because rows that predate this column have no owner; those are
+    # visible to nobody (see app/migrations.py). SET NULL rather than CASCADE for
+    # the same reason as transactions.cashier_id: deleting a cashier must not
+    # silently destroy a parked cart.
+    cashier_id: Mapped[str | None] = mapped_column(
+        ForeignKey("cashiers.id", ondelete="SET NULL"), index=True
+    )
     # Stable ordering for the OpenSalesStrip tabs and for `,` / `.` cycling. The
     # strip labels tabs by 1-based position, so order must be deterministic.
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, index=True)

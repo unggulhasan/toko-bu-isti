@@ -43,9 +43,12 @@ CREATE TABLE products (
 CREATE TABLE open_sales (
     id CHAR(36) CHARACTER SET OCTETS NOT NULL,
     "position" INTEGER NOT NULL,
+    cashier_id CHAR(36) CHARACTER SET OCTETS,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_open_sales_cashier FOREIGN KEY (cashier_id)
+        REFERENCES cashiers (id) ON DELETE SET NULL
 )
 -- @@
 CREATE TABLE open_sale_lines (
@@ -110,6 +113,11 @@ CREATE INDEX ix_products_name_upper ON products COMPUTED BY (upper(name))
 CREATE INDEX ix_open_sales_position ON open_sales ("position")
 -- @@
 CREATE INDEX ix_open_sale_lines_sale_id ON open_sale_lines (sale_id)
+-- @@
+-- Carts are scoped to the cashier who created them. app/migrations.py applies the
+-- same column/index to databases created before this existed -- keep the two in
+-- step.
+CREATE INDEX ix_open_sales_cashier_id ON open_sales (cashier_id)
 -- @@
 -- Serves the transactions list and the daily stat strip.
 CREATE INDEX ix_txn_created ON transactions (created_at)
