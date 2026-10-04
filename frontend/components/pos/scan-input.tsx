@@ -51,8 +51,14 @@ export type ScanInputHandle = {
 
 export const ScanInput = forwardRef<
   ScanInputHandle,
-  { onPay: () => void; onFocusQty?: (lineId: string) => void }
->(function ScanInput({ onPay, onFocusQty }, ref) {
+  {
+    onPay: () => void
+    onFocusQty?: (lineId: string) => void
+    /** Focus on mount. Off while a dialog is open over the page, so a
+     * remount can't pull focus out of it. */
+    autoFocus?: boolean
+  }
+>(function ScanInput({ onPay, onFocusQty, autoFocus = true }, ref) {
   const [value, setValue] = useState("")
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [commandError, setCommandError] = useState<string | null>(null)
@@ -160,7 +166,7 @@ export const ScanInput = forwardRef<
         </InputGroupAddon>
         <InputGroupInput
           ref={inputRef}
-          autoFocus
+          autoFocus={autoFocus}
           placeholder="Pindai barkode atau ketik / untuk perintah"
           value={value}
           onChange={(e) => {

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, type ReactNode } from "react"
 
 import { OpenSalesStrip } from "@/components/pos/open-sales-strip"
 import { ScanInput, type ScanInputHandle } from "@/components/pos/scan-input"
@@ -36,54 +36,64 @@ export default function CheckoutPage() {
     onNextSale: () => cycleActiveSale(1),
   })
 
+  let body: ReactNode
   if (openSales.isError) {
     const message =
       openSales.error instanceof ApiError && openSales.error.kind === "network"
         ? openSales.error.message
         : "Tidak dapat memuat transaksi. Muat ulang halaman."
-    return (
+    body = (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background">
         <p className="text-sm text-destructive">{message}</p>
       </div>
     )
-  }
-
-  if (openSales.isLoading || !activeSale) {
-    return (
+  } else if (openSales.isLoading || !activeSale) {
+    body = (
       <div className="flex min-h-0 flex-1 items-center justify-center bg-background">
         <Spinner className="size-6 text-muted-foreground" />
       </div>
     )
-  }
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <OpenSalesStrip />
-      <div className="flex min-h-0 flex-1 gap-px bg-border">
-        <div className="flex min-h-0 flex-1 flex-col bg-background px-6 py-5.5">
-          <div className="shrink-0">
-            <ScanInput
-              ref={scanInputRef}
-              onPay={openPayment}
-              onFocusQty={(lineId) => cartTableRef.current?.focusQty(lineId)}
+  } else {
+    body = (
+      <>
+        <OpenSalesStrip />
+        <div className="flex min-h-0 flex-1 gap-px bg-border">
+          <div className="flex min-h-0 flex-1 flex-col bg-background px-6 py-5.5">
+            <div className="shrink-0">
+              <ScanInput
+                ref={scanInputRef}
+                autoFocus={!paymentOpen}
+                onPay={openPayment}
+                onFocusQty={(lineId) => cartTableRef.current?.focusQty(lineId)}
+              />
+            </div>
+            <div className="mt-6.5 mb-2.5 flex shrink-0 items-baseline justify-between">
+              <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                Transaksi ini
+              </span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {activeSale.lineCount} baris · {activeSale.units} unit · ↑↓
+                pilih baris · ketik untuk ubah jumlah
+              </span>
+            </div>
+            <CartTable
+              ref={cartTableRef}
+              onQtyEnter={() => scanInputRef.current?.focus()}
             />
           </div>
-          <div className="mt-6.5 mb-2.5 flex shrink-0 items-baseline justify-between">
-            <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-              Transaksi ini
-            </span>
-            <span className="font-mono text-xs text-muted-foreground">
-              {activeSale.lineCount} baris · {activeSale.units} unit · ↑↓ pilih
-              baris · ketik untuk ubah jumlah
-            </span>
-          </div>
-          <CartTable
-            ref={cartTableRef}
-            onQtyEnter={() => scanInputRef.current?.focus()}
-          />
+          <CartSummaryPanel onPay={openPayment} />
         </div>
-        <CartSummaryPanel onPay={openPayment} />
-      </div>
+      </>
+    )
+  }
+
+  // The dialog is rendered outside the loading/error branches on purpose:
+  // checkout consumes the open sale, so activeSale is briefly undefined while
+  // the replacement cart is bootstrapped, and unmounting here would drop the
+  // dialog's post-payment (reprint) state.
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {body}
       <CashPaymentDialog
         open={paymentOpen}
         onOpenChange={(open) => {
