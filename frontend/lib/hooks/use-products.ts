@@ -58,10 +58,17 @@ export function useDeleteProduct() {
   })
 }
 
+export function useExportProducts() {
+  return useMutation({
+    mutationFn: (password: string) => api.exportProducts(password),
+  })
+}
+
 export function useImportProducts() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (fileText: string) => api.importProducts(fileText),
+    mutationFn: ({ fileText, password }: { fileText: string; password: string }) =>
+      api.importProducts(fileText, password),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
   })
 }

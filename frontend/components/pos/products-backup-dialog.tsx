@@ -10,11 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { ApiError } from "@/lib/api/client"
-import { exportProductsUrl } from "@/lib/api/products"
-import { useImportProducts } from "@/lib/hooks/use-products"
+import { useExportProducts, useImportProducts } from "@/lib/hooks/use-products"
 import { formatClock, formatDateID } from "@/lib/format"
 
 type ParsedBackup = {
@@ -31,24 +31,52 @@ export function ProductsBackupDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const importProducts = useImportProducts()
+  const exportProducts = useExportProducts()
   const [pending, setPending] = useState<ParsedBackup | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isExporting, setIsExporting] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
+  // Held in component state only -- never persisted, never logged.
+  const [backupPassword, setBackupPassword] = useState("")
+  const [restorePassword, setRestorePassword] = useState("")
   const [isReadingFile, setIsReadingFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function reset() {
     setPending(null)
     setError(null)
+    setBackupError(null)
+    setBackupPassword("")
+    setRestorePassword("")
   }
 
-  function handleExport() {
-    // window.open() returns once the download starts, not once it finishes,
-    // so this is a brief courtesy flash rather than a true completion signal
-    // -- there is no progress event for a plain browser-driven download.
-    setIsExporting(true)
-    window.open(exportProductsUrl(), "_blank")
-    setTimeout(() => setIsExporting(false), 600)
+  async function handleExport() {
+    setBackupError(null)
+    try {
+      const blob = await exportProducts.mutateAsync(backupPassword)
+      // Same name the server's Content-Disposition would have given:
+      // produk-cadangan-YYYYMMDD-HHMMSS.json (UTC).
+      const stamp = new Date()
+        .toISOString()
+        .replace(/\.\d+Z$/, "")
+        .replace(/[-:]/g, "")
+        .replace("T", "-")
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `produk-cadangan-${stamp}.json`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setBackupPassword("")
+    } catch (err) {
+      setBackupPassword("")
+      setBackupError(
+        err instanceof ApiError
+          ? err.message
+          : "Tidak dapat menghubungi server kasir."
+      )
+    }
   }
 
   async function handleFileSelected(file: File) {
@@ -84,7 +112,10 @@ export function ProductsBackupDialog({
   async function handleConfirmImport() {
     if (!pending) return
     try {
-      const result = await importProducts.mutateAsync(pending.fileText)
+      const result = await importProducts.mutateAsync({
+        fileText: pending.fileText,
+        password: restorePassword,
+      })
       reset()
       onOpenChange(false)
       toast.add({
@@ -92,6 +123,7 @@ export function ProductsBackupDialog({
         description: `${result.imported} produk (${result.active} aktif, ${result.inactive} nonaktif)`,
       })
     } catch (err) {
+      setRestorePassword("")
       setError(
         err instanceof ApiError
           ? err.message
@@ -122,15 +154,29 @@ export function ProductsBackupDialog({
           <p className="text-sm text-muted-foreground">
             Unduh seluruh katalog produk sebagai berkas cadangan.
           </p>
+          <Input
+            type="password"
+            autoComplete="off"
+            placeholder="Kata sandi cadangan"
+            value={backupPassword}
+            disabled={exportProducts.isPending}
+            onChange={(e) => setBackupPassword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && backupPassword && !exportProducts.isPending) {
+                handleExport()
+              }
+            }}
+          />
           <Button
             type="button"
             variant="outline"
-            disabled={isExporting}
+            disabled={exportProducts.isPending || !backupPassword}
             onClick={handleExport}
           >
-            {isExporting && <Spinner className="text-current" />}
+            {exportProducts.isPending && <Spinner className="text-current" />}
             Cadangkan produk
           </Button>
+          {backupError && <p className="text-sm text-destructive">{backupError}</p>}
         </div>
 
         <div className="space-y-2 border-t border-border pt-4">
@@ -175,6 +221,20 @@ export function ProductsBackupDialog({
                 Katalog produk saat ini akan diganti seluruhnya dan tidak dapat
                 dibatalkan.
               </p>
+              <Input
+                type="password"
+                autoComplete="off"
+                className="mt-3"
+                placeholder="Kata sandi pemulihan"
+                value={restorePassword}
+                disabled={importProducts.isPending}
+                onChange={(e) => setRestorePassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && restorePassword && !importProducts.isPending) {
+                    handleConfirmImport()
+                  }
+                }}
+              />
             </div>
           )}
 
@@ -195,7 +255,7 @@ export function ProductsBackupDialog({
               <Button
                 type="button"
                 variant="destructive"
-                disabled={importProducts.isPending}
+                disabled={importProducts.isPending || !restorePassword}
                 onClick={handleConfirmImport}
               >
                 {importProducts.isPending && <Spinner className="text-current" />}

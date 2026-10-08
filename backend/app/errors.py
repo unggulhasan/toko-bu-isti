@@ -73,6 +73,14 @@ def printer_unavailable() -> HTTPException:
     return api_error(503, "PRINTER_UNAVAILABLE", "Tidak dapat menghubungi printer")
 
 
+def backup_password_invalid() -> HTTPException:
+    return api_error(403, "BACKUP_PASSWORD_INVALID", "Kata sandi cadangan salah")
+
+
+def restore_password_invalid() -> HTTPException:
+    return api_error(403, "RESTORE_PASSWORD_INVALID", "Kata sandi pemulihan salah")
+
+
 def import_invalid(errors: list[dict[str, Any]]) -> HTTPException:
     return api_error(422, "IMPORT_INVALID", "Berkas cadangan tidak valid", errors=errors)
 

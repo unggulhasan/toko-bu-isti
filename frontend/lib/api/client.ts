@@ -52,6 +52,9 @@ type RequestOptions = Omit<RequestInit, "body"> & {
   // Already-serialized JSON (e.g. a file's own contents being re-uploaded
   // verbatim) -- sent as-is instead of through JSON.stringify(body).
   rawBody?: string
+  // Resolve with the response body as a Blob instead of parsed JSON (file
+  // downloads). Errors are still the usual JSON error shapes.
+  blob?: boolean
 }
 
 function buildHeaders(opts: RequestOptions): Headers {
@@ -156,6 +159,8 @@ export async function request<T>(
   // body. Note the asymmetry: DELETE /open-sales/{id}/lines/{lineId} returns
   // 200 WITH a body, so it goes through the normal json() path below.
   if (res.status === 204) return undefined as T
+
+  if (opts.blob) return (await res.blob()) as T
 
   return (await res.json()) as T
 }

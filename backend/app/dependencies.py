@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Annotated
 
 from fastapi import Depends, Header
@@ -9,10 +10,46 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .database import get_db
-from .errors import unknown_cashier
+from .errors import (
+    backup_password_invalid,
+    restore_password_invalid,
+    unknown_cashier,
+)
 from .models import Cashier
 
 DbSession = Annotated[Session, Depends(get_db)]
+
+# Hardcoded on purpose: a deterrent against accidental or casual use of the
+# catalog backup/restore (a restore replaces every product), not real secrecy.
+# Changing one means a code change and a redeploy.
+BACKUP_PASSWORD = "WildTurkey09"
+RESTORE_PASSWORD = "CableMan01"
+
+
+def _matches(supplied: str | None, expected: str) -> bool:
+    # A missing header counts as wrong (a 403, not a 422 that reveals the
+    # header exists). Compared as bytes so non-ASCII input cannot raise.
+    if supplied is None:
+        return False
+    return secrets.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8"))
+
+
+def require_backup_password(
+    x_backup_password: Annotated[str | None, Header()] = None,
+) -> None:
+    """Gate for GET /products/export. Runs before the route body."""
+    if not _matches(x_backup_password, BACKUP_PASSWORD):
+        raise backup_password_invalid()
+
+
+def require_restore_password(
+    x_backup_password: Annotated[str | None, Header()] = None,
+) -> None:
+    """Gate for POST /products/import. Runs before the body is parsed and
+    before any row is deleted. Same header as backup; the route picks which
+    password it is compared against."""
+    if not _matches(x_backup_password, RESTORE_PASSWORD):
+        raise restore_password_invalid()
 
 
 def current_cashier(

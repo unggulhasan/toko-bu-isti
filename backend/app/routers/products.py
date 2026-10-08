@@ -6,13 +6,18 @@ import json
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Query, Response, status
 from pydantic import ValidationError
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
-from ..dependencies import CurrentCashier, DbSession
+from ..dependencies import (
+    CurrentCashier,
+    DbSession,
+    require_backup_password,
+    require_restore_password,
+)
 from ..errors import (
     barcode_taken,
     import_invalid,
@@ -131,11 +136,12 @@ def search_products(
     return [ProductOut.model_validate(r) for r in rows]
 
 
-@router.get("/export")
+@router.get("/export", dependencies=[Depends(require_backup_password)])
 def export_products(db: DbSession) -> Response:
     """Full lossless snapshot of every product, active and soft-deleted, as a
-    downloadable JSON file. No cashier auth -- read-only, same posture as
-    GET /transactions/report.
+    downloadable JSON file. Requires the backup password in X-Backup-Password,
+    so it can no longer be opened as a plain browser URL -- the frontend
+    fetches it and saves the blob. No cashier auth.
     """
     rows = db.scalars(select(Product).order_by(Product.barcode)).all()
     payload = ProductBackupFile(
@@ -152,16 +158,21 @@ def export_products(db: DbSession) -> Response:
     )
 
 
-@router.post("/import", response_model=ProductImportResult)
+@router.post(
+    "/import",
+    response_model=ProductImportResult,
+    dependencies=[Depends(require_restore_password)],
+)
 def import_products(
     cashier: CurrentCashier,
     db: DbSession,
     body: Annotated[bytes, Body()],
 ) -> ProductImportResult:
     """Wholesale replace of the products table from a previously exported
-    backup file. Validated in full before any row is deleted; the delete and
-    the bulk insert happen in one transaction so a failure midway rolls back
-    to the pre-import state.
+    backup file. Requires the restore password in X-Backup-Password, checked
+    before the body is parsed. Validated in full before any row is deleted;
+    the delete and the bulk insert happen in one transaction so a failure
+    midway rolls back to the pre-import state.
 
     The request must NOT be sent with a `application/json` Content-Type: with
     that header FastAPI parses the body as JSON before this parameter ever

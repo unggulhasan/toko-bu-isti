@@ -269,6 +269,60 @@ async function main() {
     assert((body as Json).price === 12345, "expected price 12345")
   })
 
+  await check("GET /api/products/export (password gate)", async () => {
+    const none = await call("/api/products/export")
+    assert(none.status === 403, `no password: expected 403, got ${none.status}`)
+    const noneCode = ((none.body as Json).detail as Json).code
+    assert(
+      noneCode === "BACKUP_PASSWORD_INVALID",
+      `expected BACKUP_PASSWORD_INVALID, got ${noneCode}`
+    )
+
+    // The restore password must not open the backup endpoint.
+    const wrong = await call("/api/products/export", {
+      headers: { "X-Backup-Password": "CableMan01" },
+    })
+    assert(wrong.status === 403, `wrong password: expected 403, got ${wrong.status}`)
+
+    const ok = await call("/api/products/export", {
+      headers: { "X-Backup-Password": "WildTurkey09" },
+    })
+    assert(ok.status === 200, `right password: expected 200, got ${ok.status}`)
+    const backup = ok.body as Json
+    assert(backup.formatVersion === 1, "expected formatVersion 1")
+    assert(
+      backup.productCount === (backup.products as unknown[]).length,
+      "productCount does not match products length"
+    )
+  })
+
+  await check("POST /api/products/import (password gate)", async () => {
+    // Rejected before any row is touched, so the catalog must be unchanged.
+    const before = (await call("/api/products?page=0&pageSize=1")).body as Json
+    for (const password of [undefined, "WildTurkey09", "wrong"]) {
+      const res = await call("/api/products/import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "X-Cashier-Id": cashierId,
+          ...(password ? { "X-Backup-Password": password } : {}),
+        },
+        body: "{}",
+      })
+      assert(
+        res.status === 403,
+        `password ${password ?? "(none)"}: expected 403, got ${res.status}`
+      )
+      const code = ((res.body as Json).detail as Json).code
+      assert(
+        code === "RESTORE_PASSWORD_INVALID",
+        `expected RESTORE_PASSWORD_INVALID, got ${code}`
+      )
+    }
+    const after = (await call("/api/products?page=0&pageSize=1")).body as Json
+    assert(after.total === before.total, "catalog changed after a rejected import")
+  })
+
   await check(
     "GET /api/open-sales (list, may be non-empty from seed)",
     async () => {

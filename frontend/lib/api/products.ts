@@ -51,17 +51,29 @@ export function deleteProduct(id: string): Promise<void> {
   return request(`/api/products/${id}`, { method: "DELETE" })
 }
 
-// Plain URL, opened via window.open -- mirrors reportUrl() in transactions.ts.
-export function exportProductsUrl(): string {
-  return "/api/products/export"
+// Backup and restore are gated by hardcoded passwords the backend checks from
+// the X-Backup-Password header (backend/app/dependencies.py). The export can
+// therefore no longer be a plain URL: it is fetched with the header and saved
+// from the returned Blob.
+const PASSWORD_HEADER = "X-Backup-Password"
+
+export function exportProducts(password: string): Promise<Blob> {
+  return request("/api/products/export", {
+    blob: true,
+    headers: { [PASSWORD_HEADER]: password },
+  })
 }
 
 // `rawBody` sends the file's own JSON text verbatim -- it must not be
 // re-JSON.stringify'd, which `body` would do.
-export function importProducts(fileText: string): Promise<ProductImportResult> {
+export function importProducts(
+  fileText: string,
+  password: string
+): Promise<ProductImportResult> {
   return request("/api/products/import", {
     method: "POST",
     rawBody: fileText,
     withCashier: true,
+    headers: { [PASSWORD_HEADER]: password },
   })
 }
