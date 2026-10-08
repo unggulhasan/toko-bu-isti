@@ -3,7 +3,7 @@
 Panduan ini untuk memperbarui aplikasi kasir ke versi baru. Lakukan di **komputer server** (komputer yang tersambung ke printer struk), bukan di komputer kasir kedua.
 
 - Folder aplikasi: `C:\toko-bu-isti`
-- Versi terbaru: **1.0.4**
+- Versi terbaru: **1.0.5**
 - Waktu yang dibutuhkan: sekitar 10–15 menit
 - Koneksi Internet diperlukan
 
@@ -13,14 +13,14 @@ Panduan ini untuk memperbarui aplikasi kasir ke versi baru. Lakukan di **kompute
 
 ## Langkah 1 — Ekstrak file dengan WinRAR
 
-1. Simpan file **`toko-bu-isti-1.0.4.zip`** yang dikirim lewat WhatsApp ke folder **Downloads** (atau Desktop).
+1. Simpan file **`toko-bu-isti-1.0.5.zip`** yang dikirim lewat WhatsApp ke folder **Downloads** (atau Desktop).
 2. Klik kanan file tersebut.
 3. Pilih **Extract Here** (Ekstrak di sini) dari menu WinRAR.
-4. Akan muncul folder baru bernama **`toko-bu-isti-1.0.4`**.
+4. Akan muncul folder baru bernama **`toko-bu-isti-1.0.5`**.
 
 ## Langkah 2 — Salin file baru ke folder aplikasi
 
-1. Buka folder **`toko-bu-isti-1.0.4`** yang baru diekstrak. **Klik dua kali sampai terlihat isinya**: `backend`, `frontend`, `buka-kasir.bat`, `perbarui-kasir.bat`, dan file/folder lainnya.
+1. Buka folder **`toko-bu-isti-1.0.5`** yang baru diekstrak. **Klik dua kali sampai terlihat isinya**: `backend`, `frontend`, `buka-kasir.bat`, `perbarui-kasir.bat`, dan file/folder lainnya.
 2. Pilih **semua isinya** (tekan **Ctrl + A**), lalu salin (**Ctrl + C**).
 3. Buka folder **`C:\toko-bu-isti`**, lalu tempel (**Ctrl + V**).
 4. Windows akan bertanya soal file yang sudah ada. Pilih **Replace the files in the destination** (*Ganti file di tujuan*).
@@ -54,7 +54,7 @@ Panduan ini untuk memperbarui aplikasi kasir ke versi baru. Lakukan di **kompute
    - Coba satu transaksi percobaan dan cetak struknya (lalu batalkan/*void* transaksi percobaan itu).
 5. Di komputer kasir kedua, segarkan halaman browser (tekan **F5**). Kalau halaman tidak berubah, tekan **Ctrl + F5**.
 
-Selesai. Aplikasi sudah di versi 1.0.4.
+Selesai. Aplikasi sudah di versi 1.0.5.
 
 ---
 
@@ -69,7 +69,7 @@ Selesai. Aplikasi sudah di versi 1.0.4.
 
 ## Ringkasan singkat
 
-1. Klik kanan `toko-bu-isti-1.0.4.zip` → **Extract Here** (WinRAR)
-2. Salin **isi** folder `toko-bu-isti-1.0.4` ke `C:\toko-bu-isti` → **Replace**
+1. Klik kanan `toko-bu-isti-1.0.5.zip` → **Extract Here** (WinRAR)
+2. Salin **isi** folder `toko-bu-isti-1.0.5` ke `C:\toko-bu-isti` → **Replace**
 3. `perbarui-kasir.bat` → tunggu sampai selesai
 4. `buka-kasir.bat` → periksa
