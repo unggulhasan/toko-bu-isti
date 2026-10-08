@@ -19,6 +19,8 @@ CREATE TABLE cashiers (
     pin VARCHAR(8) NOT NULL,
     is_active BOOLEAN NOT NULL,
     pin_active VARCHAR(8),
+    session_token VARCHAR(64),
+    session_seen_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (id),

@@ -43,22 +43,25 @@ type FetchResult = { status: number; body: unknown; raw: Response }
 // Set after login. /api/open-sales routes are scoped to the signed-in cashier,
 // so call() attaches X-Cashier-Id to them the way the frontend client does.
 let openSalesCashierId = ""
+// Set after login. Sent as X-Session-Token on any call that carries X-Cashier-Id.
+let sessionToken = ""
 
 async function call(
   path: string,
-  init?: RequestInit & { headers?: Record<string, string> }
+  init?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> }
 ): Promise<FetchResult> {
-  const res = await fetch(`${BASE}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(openSalesCashierId && path.startsWith("/api/open-sales")
-        ? { "X-Cashier-Id": openSalesCashierId }
-        : {}),
-      ...init?.headers,
-    },
-  })
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    ...(openSalesCashierId && path.startsWith("/api/open-sales")
+      ? { "X-Cashier-Id": openSalesCashierId }
+      : {}),
+    ...init?.headers,
+  }
+  if (sessionToken && headers["X-Cashier-Id"] && !headers["X-Session-Token"]) {
+    headers["X-Session-Token"] = sessionToken
+  }
+  const res = await fetch(`${BASE}${path}`, { ...init, headers })
   if (res.status === 204)
     return { status: res.status, body: undefined, raw: res }
   const text = await res.text()
@@ -110,6 +113,67 @@ async function main() {
     )
     cashierId = cashier.id as string
     openSalesCashierId = cashierId
+    sessionToken = (body as Json).sessionToken as string
+    assert(
+      typeof sessionToken === "string" && sessionToken.length > 0,
+      "missing sessionToken"
+    )
+  })
+
+  await check(
+    "POST /api/auth/login (same PIN again) -> 409 PIN_IN_USE",
+    async () => {
+      const { status, body } = await call("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ pin: "1234" }),
+      })
+      assert(status === 409, `expected 409, got ${status}`)
+      const detail = (body as Json).detail as Json
+      assert(
+        detail.code === "PIN_IN_USE",
+        `expected PIN_IN_USE, got ${detail.code}`
+      )
+    }
+  )
+
+  await check("POST /api/auth/login (other PIN) is unaffected", async () => {
+    const { status, body } = await call("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ pin: "7890" }),
+    })
+    assert(status === 200, `expected 200, got ${status}`)
+    const token = (body as Json).sessionToken as string
+    const out = await call("/api/auth/logout", {
+      method: "POST",
+      headers: {
+        "X-Cashier-Id": ((body as Json).cashier as Json).id as string,
+        "X-Session-Token": token,
+      },
+    })
+    assert(out.status === 204, `expected logout 204, got ${out.status}`)
+  })
+
+  await check(
+    "guarded route with wrong X-Session-Token -> 401 SESSION_INVALID",
+    async () => {
+      const { status, body } = await call("/api/open-sales", {
+        headers: { "X-Session-Token": "not-the-token" },
+      })
+      assert(status === 401, `expected 401, got ${status}`)
+      const detail = (body as Json).detail as Json
+      assert(
+        detail.code === "SESSION_INVALID",
+        `expected SESSION_INVALID, got ${detail.code}`
+      )
+    }
+  )
+
+  await check("POST /api/auth/heartbeat -> 204", async () => {
+    const { status } = await call("/api/auth/heartbeat", {
+      method: "POST",
+      headers: { "X-Cashier-Id": cashierId },
+    })
+    assert(status === 204, `expected 204, got ${status}`)
   })
 
   await check("POST /api/auth/login (invalid PIN)", async () => {
@@ -123,6 +187,16 @@ async function main() {
     assert(
       detail.code === "INVALID_PIN",
       `expected INVALID_PIN, got ${detail.code}`
+    )
+  })
+
+  await check("GET /api/app/version", async () => {
+    const { status, body } = await call("/api/app/version")
+    assert(status === 200, `expected 200, got ${status}`)
+    const version = (body as Json).version
+    assert(
+      typeof version === "string" && version.length > 0,
+      "expected a non-empty version string"
     )
   })
 
@@ -282,7 +356,10 @@ async function main() {
     const wrong = await call("/api/products/export", {
       headers: { "X-Backup-Password": "CableMan01" },
     })
-    assert(wrong.status === 403, `wrong password: expected 403, got ${wrong.status}`)
+    assert(
+      wrong.status === 403,
+      `wrong password: expected 403, got ${wrong.status}`
+    )
 
     const ok = await call("/api/products/export", {
       headers: { "X-Backup-Password": "WildTurkey09" },
@@ -320,7 +397,10 @@ async function main() {
       )
     }
     const after = (await call("/api/products?page=0&pageSize=1")).body as Json
-    assert(after.total === before.total, "catalog changed after a rejected import")
+    assert(
+      after.total === before.total,
+      "catalog changed after a rejected import"
+    )
   })
 
   await check(
@@ -617,6 +697,38 @@ async function main() {
         `/api/products/barcode/${newProductBarcode}`
       )
       assert(status === 404, `expected 404, got ${status}`)
+    }
+  )
+
+  // Frees PIN 1234 so the next run (or a real login) is not blocked by this one.
+  await check(
+    "POST /api/auth/logout frees the PIN for a new login",
+    async () => {
+      const out = await call("/api/auth/logout", {
+        method: "POST",
+        headers: { "X-Cashier-Id": cashierId },
+      })
+      assert(out.status === 204, `expected 204, got ${out.status}`)
+      const stale = await call("/api/open-sales", {
+        headers: { "X-Cashier-Id": cashierId },
+      })
+      assert(
+        stale.status === 401,
+        `old token: expected 401, got ${stale.status}`
+      )
+      const again = await call("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ pin: "1234" }),
+      })
+      assert(
+        again.status === 200,
+        `re-login: expected 200, got ${again.status}`
+      )
+      sessionToken = (again.body as Json).sessionToken as string
+      await call("/api/auth/logout", {
+        method: "POST",
+        headers: { "X-Cashier-Id": cashierId },
+      })
     }
   )
 

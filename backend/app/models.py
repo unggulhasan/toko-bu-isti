@@ -58,7 +58,7 @@ class Cashier(Base, TimestampMixin):
     """Replaces the hardcoded CASHIERS map in session-store.ts.
 
     The 4-digit PIN both authenticates and *identifies* -- it selects which
-    cashier is signed in.
+    cashier is signed in. Only one login per PIN may be live at a time.
     """
 
     __tablename__ = "cashiers"
@@ -77,6 +77,12 @@ class Cashier(Base, TimestampMixin):
     # Same nullable-column trick as products: PIN unique among active cashiers
     # only, so a retired cashier's PIN can be reissued.
     pin_active: Mapped[str | None] = mapped_column(String(8))
+
+    # The single live login for this PIN (see services/sessions.py). A session is
+    # valid while its token matches; seen_at only decides when another register
+    # may take the PIN over. Both NULL = nobody is signed in.
+    session_token: Mapped[str | None] = mapped_column(String(64))
+    session_seen_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     __table_args__ = (UniqueConstraint("pin_active", name="uq_cashiers_pin_live"),)
 

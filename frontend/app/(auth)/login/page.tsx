@@ -33,6 +33,7 @@ export default function LoginPage() {
   const hydrated = useSessionHydrated()
   const isLoggedIn = useSessionStore((state) => state.isLoggedIn)
   const setSession = useSessionStore((state) => state.setSession)
+  const logoutReason = useSessionStore((state) => state.logoutReason)
   const loginMutation = useLogin()
 
   useEffect(() => {
@@ -49,15 +50,17 @@ export default function LoginPage() {
   async function handleSubmit(formData: FormData) {
     const pin = String(formData.get("password") ?? "")
     try {
-      const { cashier } = await loginMutation.mutateAsync(pin)
-      setSession(cashier)
+      const { cashier, sessionToken } = await loginMutation.mutateAsync(pin)
+      setSession(cashier, sessionToken)
       router.push("/")
     } catch (err) {
       setPassword("")
       setErrorMessage(
         err instanceof ApiError && err.kind === "network"
           ? "Tidak dapat menghubungi server kasir."
-          : "Kata sandi salah. Coba lagi."
+          : err instanceof ApiError && err.code === "PIN_IN_USE"
+            ? "PIN sedang dipakai di mesin lain."
+            : "Kata sandi salah. Coba lagi."
       )
     }
   }
@@ -137,8 +140,14 @@ export default function LoginPage() {
                 ))}
               </InputOTPGroup>
             </InputOTP>
-            {errorMessage && (
+            {errorMessage ? (
               <p className="mt-2 text-sm text-destructive">{errorMessage}</p>
+            ) : (
+              logoutReason === "replaced" && (
+                <p className="mt-2 text-sm text-destructive">
+                  Sesi berakhir. PIN dipakai di mesin lain.
+                </p>
+              )
             )}
             <Button
               type="submit"

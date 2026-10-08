@@ -7,6 +7,8 @@ import { useQueryClient } from "@tanstack/react-query"
 import { LogOut } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { releaseSession } from "@/lib/api/auth"
+import { useAppVersion } from "@/lib/hooks/use-app-version"
 import { cn } from "@/lib/utils"
 import { formatDateShortID } from "@/lib/format"
 import { useSessionStore } from "@/lib/store/session-store"
@@ -21,6 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { data: appVersion } = useAppVersion()
   const { cashierName, logout } = useSessionStore()
   // Filled in on the client only: rendering the date during SSR risks serializing
   // a different day than the browser, and a static value would never roll over.
@@ -33,6 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   function handleLogout() {
+    releaseSession()
     logout()
     // Otherwise the next cashier's first paint shows this cashier's cached
     // open sales and transactions.
@@ -69,6 +73,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
         <div className="ml-auto flex items-center gap-5.5 font-mono text-[11.5px] text-shell-foreground/60">
+          {appVersion && <span>v{appVersion.version}</span>}
           <span>{now ? formatDateShortID(now) : null}</span>
           <span className="text-shell-foreground">{cashierName}</span>
           <Button

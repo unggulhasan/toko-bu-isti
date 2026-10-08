@@ -7,6 +7,10 @@ export type Cashier = {
   name: string
 }
 
+export type AppVersion = {
+  version: string
+}
+
 export type Page<T> = {
   items: T[]
   total: number

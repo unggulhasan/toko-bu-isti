@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import tomllib
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from pydantic import field_validator
@@ -37,6 +39,10 @@ class Settings(BaseSettings):
     printer_usb_vendor_id: str | None = None
     printer_usb_product_id: str | None = None
 
+    # A login whose browser has not pinged for this long no longer blocks the PIN.
+    # The frontend heartbeats every 30 s, so this tolerates a few missed pings.
+    session_ttl_seconds: int = 120
+
     @field_validator("database_url")
     @classmethod
     def _require_url(cls, v: str) -> str:
@@ -56,3 +62,15 @@ settings = Settings()  # type: ignore[call-arg]
 # in UTC (created_at is stored in UTC -- see the Firebird session_time_zone
 # note in database.py), so conversions have to happen explicitly.
 STORE_TIMEZONE = ZoneInfo("Asia/Jakarta")
+
+
+def _read_app_version() -> str:
+    # One source of truth: backend/pyproject.toml. The project is not installed
+    # as a package, so importlib.metadata has nothing to read. Read once at
+    # import, i.e. at server start -- a restart picks up a new version.
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    with pyproject.open("rb") as f:
+        return str(tomllib.load(f)["project"]["version"])
+
+
+APP_VERSION = _read_app_version()

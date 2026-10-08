@@ -68,6 +68,19 @@ def add_open_sales_cashier() -> None:
         _run("CREATE INDEX ix_open_sales_cashier_id ON open_sales (cashier_id)")
 
 
+def add_cashier_session_columns() -> None:
+    """cashiers.session_token / session_seen_at: one live login per PIN.
+
+    Existing rows start NULL (nobody signed in). Browsers that were logged in
+    before the upgrade hold no token, so the frontend's persisted-session version
+    bump signs them out once.
+    """
+    if not _column_exists("cashiers", "session_token"):
+        _run("ALTER TABLE cashiers ADD session_token VARCHAR(64)")
+    if not _column_exists("cashiers", "session_seen_at"):
+        _run("ALTER TABLE cashiers ADD session_seen_at TIMESTAMP")
+
+
 def migrate() -> None:
     # Before schema_bootstrap has run there is nothing to upgrade, and the
     # healthcheck/bootstrap commands should report that, not crash here.
@@ -77,3 +90,4 @@ def migrate() -> None:
     ):
         return
     add_open_sales_cashier()
+    add_cashier_session_columns()

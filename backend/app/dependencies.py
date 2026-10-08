@@ -13,9 +13,11 @@ from .database import get_db
 from .errors import (
     backup_password_invalid,
     restore_password_invalid,
+    session_invalid,
     unknown_cashier,
 )
 from .models import Cashier
+from .services.sessions import touch_session
 
 DbSession = Annotated[Session, Depends(get_db)]
 
@@ -55,16 +57,19 @@ def require_restore_password(
 def current_cashier(
     x_cashier_id: Annotated[str, Header()],
     db: DbSession,
+    x_session_token: Annotated[str | None, Header()] = None,
 ) -> Cashier:
-    """Resolve the X-Cashier-Id header to a live cashier.
+    """Resolve X-Cashier-Id + X-Session-Token to the cashier holding that login.
 
-    There is no server session (spec 3.0), so routes that record *who* did
-    something take the cashier explicitly. A header rather than a query param keeps
-    it out of access logs and off every route signature.
+    Routes that record *who* did something take the cashier explicitly. A header
+    rather than a query param keeps it out of access logs and off every route
+    signature. The token proves the caller is the register that logged in -- only
+    one login per PIN is live at a time (services/sessions.py), and once another
+    register takes the PIN over, the old token stops working (401 SESSION_INVALID).
 
-    This is the ONLY request-context header -- there is no register or terminal
-    equivalent. Open-sale carts are scoped by this cashier instead, so two
-    registers signed in as different cashiers do not see each other's carts.
+    There is no register or terminal id. Open-sale carts are scoped by cashier
+    instead, so two registers signed in as different cashiers do not see each
+    other's carts.
 
     Applied to POST /products, PATCH /products/{id}, POST /transactions,
     POST /transactions/{id}/void and every /open-sales route. Deliberately not
@@ -76,6 +81,14 @@ def current_cashier(
     )
     if cashier is None:
         raise unknown_cashier()
+    # A missing header counts as wrong (401, not a 422), like the passwords above.
+    if (
+        cashier.session_token is None
+        or x_session_token is None
+        or not _matches(x_session_token, cashier.session_token)
+    ):
+        raise session_invalid()
+    touch_session(db, cashier)
     return cashier
 
 

@@ -82,6 +82,7 @@ function buildHeaders(opts: RequestOptions): Headers {
       })
     }
     headers.set("X-Cashier-Id", cashierId)
+    headers.set("X-Session-Token", useSessionStore.getState().sessionToken)
   }
 
   return headers
@@ -152,6 +153,15 @@ export async function request<T>(
 
   if (!res.ok) {
     const parsed = await parseErrorBody(res)
+    if (
+      opts.withCashier &&
+      (parsed.code === "SESSION_INVALID" || parsed.code === "UNKNOWN_CASHIER")
+    ) {
+      // Another register took this PIN over (or the cashier was retired).
+      // Dropping the session sends the PosLayout back to /login; the error
+      // still propagates so the failing call doesn't look like it succeeded.
+      useSessionStore.getState().logout("replaced")
+    }
     throw new ApiError({ status: res.status, ...parsed })
   }
 

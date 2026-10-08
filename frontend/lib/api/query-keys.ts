@@ -2,6 +2,7 @@
 // every list/search/detail under it at once.
 
 export const queryKeys = {
+  appVersion: ["app-version"] as const,
   products: {
     all: ["products"] as const,
     list: (params: { q: string; page: number; pageSize: number }) =>

@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryClient } from "@tanstack/react-query"
 
+import { releaseSession } from "@/lib/api/auth"
 import { useSessionStore } from "@/lib/store/session-store"
 
 const IDLE_TIMEOUT_MS = 45 * 60 * 1000 // 45 minutes
@@ -34,6 +35,7 @@ export function useIdleLogout() {
     let timeoutId: ReturnType<typeof setTimeout>
 
     function handleIdle() {
+      releaseSession()
       logout()
       // Otherwise the next cashier's first paint shows this cashier's
       // cached open sales and transactions (mirrors app-shell.tsx logout).

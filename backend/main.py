@@ -17,9 +17,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
+from app.config import APP_VERSION, settings
 from app.migrations import migrate
-from app.routers import auth, open_sales, products, transactions
+from app.routers import app_ver, auth, open_sales, products, transactions
 
 
 @asynccontextmanager
@@ -33,7 +33,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Toko Bu Isti POS API",
-    version="0.1.0",
+    version=APP_VERSION,
     description="Backend for a single-store, keyboard-first kasir.",
     lifespan=lifespan,
 )
@@ -50,6 +50,7 @@ app.add_middleware(
     allow_headers=["*"],  # includes X-Cashier-Id
 )
 
+app.include_router(app_ver.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(products.router, prefix="/api")
 app.include_router(open_sales.router, prefix="/api")

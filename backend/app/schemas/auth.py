@@ -18,3 +18,5 @@ class CashierOut(CamelModel):
 
 class LoginResponse(CamelModel):
     cashier: CashierOut
+    # Sent back as X-Session-Token on every guarded request (dependencies.py).
+    session_token: str

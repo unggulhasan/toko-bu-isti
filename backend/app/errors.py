@@ -38,6 +38,16 @@ def invalid_pin() -> HTTPException:
     return api_error(401, "INVALID_PIN", "PIN salah")
 
 
+def pin_in_use() -> HTTPException:
+    return api_error(409, "PIN_IN_USE", "PIN sedang dipakai di mesin lain")
+
+
+def session_invalid() -> HTTPException:
+    return api_error(
+        401, "SESSION_INVALID", "Sesi berakhir. PIN dipakai di mesin lain."
+    )
+
+
 def empty_sale() -> HTTPException:
     return api_error(400, "EMPTY_SALE", "Keranjang kosong")
 

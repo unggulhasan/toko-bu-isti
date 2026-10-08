@@ -18,7 +18,6 @@ import { formatNumber, formatRupiah, parseRupiahInput } from "@/lib/format"
 import { ApiError } from "@/lib/api/client"
 import { useActiveSale } from "@/lib/hooks/use-active-sale"
 import { usePrintTransaction, useCheckout } from "@/lib/hooks/use-transactions"
-import { useSessionStore } from "@/lib/store/session-store"
 import { toast } from "@/components/ui/toast"
 import { cn } from "@/lib/utils"
 
@@ -47,7 +46,6 @@ export function CashPaymentDialog({
   const { sale: activeSale, activeIndex } = useActiveSale()
   const checkout = useCheckout()
   const printTransaction = usePrintTransaction()
-  const logout = useSessionStore((s) => s.logout)
   const [tenderedRaw, setTenderedRaw] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [paid, setPaid] = useState<PaidReceipt | null>(null)
@@ -145,8 +143,11 @@ export function CashPaymentDialog({
           // Another terminal paid or deleted this cart first.
           setErrorMessage(err.message)
           onOpenChange(false)
-        } else if (err.code === "UNKNOWN_CASHIER") {
-          logout()
+        } else if (
+          err.code === "UNKNOWN_CASHIER" ||
+          err.code === "SESSION_INVALID"
+        ) {
+          // lib/api/client.ts already ended the session; the layout redirects.
         } else {
           setErrorMessage(err.message)
         }
